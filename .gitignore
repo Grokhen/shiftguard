@@ -1,0 +1,16 @@
+# Node
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.env
+
+# VS Code
+.vscode/*.log
+
+# Prisma
+apps/backend/prisma/*.db
+.prisma/
+
+# Docker volumes
+pgdata/

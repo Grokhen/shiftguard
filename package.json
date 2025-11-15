@@ -1,0 +1,10 @@
+{
+  "name": "vacaciones-guardias",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:backend": "npm --workspace=@app/backend run dev",
+    "build:backend": "npm --workspace=@app/backend run build",
+    "start:backend": "npm --workspace=@app/backend run start"
+  }
+}
