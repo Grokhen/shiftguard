@@ -8,10 +8,6 @@ export interface AuthPayload {
   deleg: number
 }
 
-export interface AuthenticatedRequest extends Request {
-  user?: AuthPayload
-}
-
 function isAuthPayload(payload: unknown): payload is AuthPayload {
   if (!payload || typeof payload !== 'object') return false
 
@@ -19,7 +15,7 @@ function isAuthPayload(payload: unknown): payload is AuthPayload {
   return typeof p.sub === 'number' && typeof p.role === 'number' && typeof p.deleg === 'number'
 }
 
-export function authRequired(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export function authRequired(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization || ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : null
 
