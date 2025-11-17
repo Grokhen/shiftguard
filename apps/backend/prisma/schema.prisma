@@ -1,0 +1,194 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model Delegacion {
+    id          Int     @id @default(autoincrement())
+    nombre      String  @unique @db.VarChar(120)
+    codigo      String? @unique @db.VarChar(20)
+    pais_code   String? @db.Char(2)
+    region_code String? @db.VarChar(50)
+    activo      Boolean @default(true)
+
+    Equipos  Equipo[]
+    Usuarios Usuario[]
+    Guardias Guardia[]
+
+    @@map("Delegaciones")
+}
+
+model RolUsuario {
+    id     Int    @id @default(autoincrement())
+    codigo String @unique @db.VarChar(30)
+    nombre String @db.VarChar(80)
+
+    Usuarios Usuario[]
+
+    @@map("Roles_usuario")
+}
+
+model Usuario {
+    id                      Int       @id @default(autoincrement())
+    nombre                  String    @db.VarChar(100)
+    apellidos               String    @db.VarChar(150)
+    email                   String    @unique @db.VarChar(255)
+    password_hash           String?   @db.Text
+    password_actualizada_en DateTime?
+    ultimo_login            DateTime?
+    intentos_fallidos       Int       @default(0)
+    bloqueado_en            DateTime?
+    requiere_reset          Boolean   @default(false)
+    rol_id                  Int
+    delegacion_id           Int
+    activo                  Boolean   @default(true)
+    fecha_creacion          DateTime  @default(now())
+    fecha_actualizacion     DateTime  @updatedAt
+
+    Rol        RolUsuario @relation(fields: [rol_id], references: [id])
+    Delegacion Delegacion @relation(fields: [delegacion_id], references: [id])
+
+    Equipos           MiembroEquipo[]
+    Permisos          Permiso[]           @relation("PermisosDeUsuario")
+    PermisosCreados   Permiso[]           @relation("PermisosCreados")
+    PermisosDecididos Permiso[]           @relation("PermisosDecididos")
+    Saldos            SaldoPermiso[]
+    GuardiasCreadas   Guardia[]
+    Asignaciones      AsignacionGuardia[]
+
+    @@index([rol_id])
+    @@index([delegacion_id])
+    @@index([delegacion_id, activo])
+    @@map("Usuarios")
+}
+
+model Equipo {
+    id            Int    @id @default(autoincrement())
+    nombre_equipo String @db.VarChar(120)
+    delegacion_id Int
+
+    Delegacion Delegacion      @relation(fields: [delegacion_id], references: [id])
+    Miembros   MiembroEquipo[]
+
+    @@unique([nombre_equipo, delegacion_id])
+    @@index([delegacion_id])
+    @@map("Equipos")
+}
+
+model MiembroEquipo {
+    equipo_id  Int
+    usuario_id Int
+
+    Equipo  Equipo  @relation(fields: [equipo_id], references: [id])
+    Usuario Usuario @relation(fields: [usuario_id], references: [id])
+
+    @@id([equipo_id, usuario_id])
+    @@index([usuario_id])
+    @@map("Miembros_Equipo")
+}
+
+model TipoPermiso {
+    id     Int    @id @default(autoincrement())
+    codigo String @unique @db.VarChar(30)
+    nombre String @db.VarChar(80)
+
+    Permisos Permiso[]
+    Saldos   SaldoPermiso[]
+
+    @@map("Tipos_Permiso")
+}
+
+model EstadoPermiso {
+    id     Int    @id @default(autoincrement())
+    codigo String @unique @db.VarChar(20)
+    nombre String @db.VarChar(80)
+
+    Permisos Permiso[]
+
+    @@map("Estados_Permiso")
+}
+
+model Permiso {
+    id            Int      @id @default(autoincrement())
+    usuario_id    Int
+    tipo_id       Int
+    estado_id     Int
+    fecha_inicio  DateTime @db.Date
+    fecha_fin     DateTime @db.Date
+    creado_por    Int?
+    decidido_por  Int?
+    observaciones String?
+
+    Usuario Usuario       @relation("PermisosDeUsuario", fields: [usuario_id], references: [id])
+    Tipo    TipoPermiso   @relation(fields: [tipo_id], references: [id])
+    Estado  EstadoPermiso @relation(fields: [estado_id], references: [id])
+    Creador Usuario?      @relation("PermisosCreados", fields: [creado_por], references: [id])
+    Decisor Usuario?      @relation("PermisosDecididos", fields: [decidido_por], references: [id])
+
+    @@index([usuario_id, fecha_inicio], name: "idx_permisos_usuario_inicio")
+    @@index([estado_id])
+    @@index([tipo_id])
+    @@map("Permisos")
+}
+
+model SaldoPermiso {
+    id         Int     @id @default(autoincrement())
+    usuario_id Int
+    anio       Int
+    tipo_id    Int
+    derecho    Decimal @db.Decimal(5, 2)
+    arrastre   Decimal @default(0) @db.Decimal(5, 2)
+
+    Usuario Usuario     @relation(fields: [usuario_id], references: [id])
+    Tipo    TipoPermiso @relation(fields: [tipo_id], references: [id])
+
+    @@unique([usuario_id, anio, tipo_id])
+    @@map("Saldos_Permisos")
+}
+
+model Guardia {
+    id            Int      @id @default(autoincrement())
+    delegacion_id Int
+    fecha_inicio  DateTime
+    fecha_fin     DateTime
+    estado        String?  @db.VarChar(20)
+    creado_por    Int?
+    creado_en     DateTime @default(now())
+
+    Delegacion   Delegacion          @relation(fields: [delegacion_id], references: [id])
+    Creador      Usuario?            @relation(fields: [creado_por], references: [id])
+    Asignaciones AsignacionGuardia[]
+
+    @@index([delegacion_id, fecha_inicio])
+    @@map("Guardias")
+}
+
+model RolGuardia {
+    id     Int    @id @default(autoincrement())
+    codigo String @unique @db.VarChar(20)
+    nombre String @db.VarChar(50)
+
+    Asignaciones AsignacionGuardia[]
+
+    @@map("Roles_Guardia")
+}
+
+model AsignacionGuardia {
+    id             Int @id @default(autoincrement())
+    guardia_id     Int
+    usuario_id     Int
+    rol_guardia_id Int
+
+    Guardia    Guardia    @relation(fields: [guardia_id], references: [id])
+    Usuario    Usuario    @relation(fields: [usuario_id], references: [id])
+    RolGuardia RolGuardia @relation(fields: [rol_guardia_id], references: [id])
+
+    @@unique([guardia_id, usuario_id])
+    @@unique([guardia_id, rol_guardia_id])
+    @@index([usuario_id])
+    @@map("Asignaciones_Guardia")
+}
