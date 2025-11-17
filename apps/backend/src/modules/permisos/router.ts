@@ -137,6 +137,50 @@ router.get('/mios', async (req, res, next) => {
   }
 })
 
+// GET /api/permisos/usuario/:id
+// Lista permisos de un usuario concreto (solo SUPERVISOR/ADMIN)
+router.get('/usuario/:id', async (req, res, next) => {
+  try {
+    const authUser = req.user as AuthUser
+    const usuarioId = Number(req.params.id)
+
+    if (Number.isNaN(usuarioId)) {
+      return res.status(400).json({ error: 'ID de usuario inválido' })
+    }
+
+    await ensureSupervisorOrAdmin(authUser)
+
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { id: true, delegacion_id: true },
+    })
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    const rolCodigo = await getUserRoleCodigo(authUser)
+    const isAdmin = rolCodigo === 'ADMIN'
+
+    if (!isAdmin && usuario.delegacion_id !== authUser.deleg) {
+      return res.status(403).json({ error: 'No puedes consultar permisos de otra delegación' })
+    }
+
+    const permisos = await prisma.permiso.findMany({
+      where: { usuario_id: usuarioId },
+      include: {
+        Tipo: true,
+        Estado: true,
+      },
+      orderBy: { fecha_inicio: 'desc' },
+    })
+
+    res.json(permisos)
+  } catch (e) {
+    next(e)
+  }
+})
+
 // ---------- POST /api/permisos ----------
 
 /**
@@ -210,10 +254,8 @@ router.patch('/:id/decidir', async (req, res, next) => {
 
     const dto = decidirPermisoSchema.parse(req.body)
 
-    // 1) Comprobar rol del usuario (SUPERVISOR / ADMIN)
     await ensureSupervisorOrAdmin(user)
 
-    // 2) Cargar el permiso actual con su estado
     const permiso = await prisma.permiso.findUnique({
       where: { id: permisoId },
       include: {
@@ -225,18 +267,15 @@ router.patch('/:id/decidir', async (req, res, next) => {
       return res.status(404).json({ error: 'Permiso no encontrado' })
     }
 
-    // (opcional) Podrías comprobar también que pertenece a la misma delegación:
     // const usuarioPermiso = await prisma.usuario.findUnique({ where: { id: permiso.usuario_id } })
     // if (usuarioPermiso?.delegacion_id !== user.deleg) { ... }
 
-    // 3) Regla de negocio: solo se puede decidir si el permiso está PENDIENTE
     if (permiso.Estado.codigo !== 'PENDIENTE') {
       return res.status(400).json({
         error: `No se puede cambiar un permiso en estado ${permiso.Estado.codigo}`,
       })
     }
 
-    // 4) Comprobar que el nuevo estado existe
     const nuevoEstado = await prisma.estadoPermiso.findUnique({
       where: { id: dto.estado_id },
     })
@@ -247,14 +286,12 @@ router.patch('/:id/decidir', async (req, res, next) => {
       })
     }
 
-    // Evitar volver a PENDIENTE
     if (nuevoEstado.codigo === 'PENDIENTE') {
       return res.status(400).json({
         error: 'No se puede volver a poner el permiso en estado PENDIENTE',
       })
     }
 
-    // 5) Actualizar permiso
     const actualizado = await prisma.permiso.update({
       where: { id: permisoId },
       data: {
@@ -270,7 +307,6 @@ router.patch('/:id/decidir', async (req, res, next) => {
 
     res.json(actualizado)
   } catch (e: any) {
-    // Si es un error de ensureSupervisorOrAdmin con statusCode, respóndelo bien
     if (e?.statusCode) {
       return res.status(e.statusCode).json({ error: e.message })
     }
