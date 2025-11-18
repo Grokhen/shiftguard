@@ -50,6 +50,12 @@ const editarUsuarioSchema = z.object({
   password: z.string().min(8).optional(),
 })
 
+const listarUsuariosQuerySchema = z.object({
+  delegacion_id: z.coerce.number().int().optional(),
+  rol_id: z.coerce.number().int().optional(),
+  activo: z.coerce.boolean().optional(),
+})
+
 const editarPerfilPropioSchema = z.object({
   nombre: z.string().min(1).max(100).optional(),
   apellidos: z.string().min(1).max(150).optional(),
@@ -126,6 +132,43 @@ router.patch('/:id', async (req, res, next) => {
     })
 
     res.json(usuario)
+  } catch (e) {
+    next(e)
+  }
+})
+
+// GET /api/usuarios  (admin)
+// Listado de usuarios con filtros opcionales
+router.get('/', async (req, res, next) => {
+  try {
+    const authUser = req.user as AuthUser
+    await ensureAdmin(authUser)
+
+    const query = listarUsuariosQuerySchema.parse(req.query)
+
+    const where: any = {}
+
+    if (query.delegacion_id) where.delegacion_id = query.delegacion_id
+    if (query.rol_id) where.rol_id = query.rol_id
+    if (typeof query.activo === 'boolean') where.activo = query.activo
+
+    const usuarios = await prisma.usuario.findMany({
+      where,
+      orderBy: { apellidos: 'asc' },
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        email: true,
+        delegacion_id: true,
+        rol_id: true,
+        activo: true,
+        fecha_creacion: true,
+        ultimo_login: true,
+      },
+    })
+
+    res.json(usuarios)
   } catch (e) {
     next(e)
   }
