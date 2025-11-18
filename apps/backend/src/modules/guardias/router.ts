@@ -56,6 +56,11 @@ const listarGuardiasQuerySchema = z.object({
   hasta: iso.optional(),
 })
 
+const listarMisGuardiasQuerySchema = z.object({
+  desde: iso.optional(),
+  hasta: iso.optional(),
+})
+
 const asignacionGuardiaSchema = z.object({
   usuario_id: z.number().int().positive(),
   rol_guardia_id: z.number().int().positive(),
@@ -113,6 +118,43 @@ router.get('/delegacion/:delegacionId', async (req, res, next) => {
     })
 
     res.json(guardias)
+  } catch (e) {
+    next(e)
+  }
+})
+
+// GET /api/guardias/mias
+// Guardias en las que el usuario autenticado está asignado
+router.get('/mias', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    const query = listarMisGuardiasQuerySchema.parse(req.query)
+
+    const guardiaFilter: any = {}
+
+    if (query.desde || query.hasta) {
+      guardiaFilter.fecha_inicio = {}
+      if (query.desde) guardiaFilter.fecha_inicio.gte = new Date(query.desde)
+      if (query.hasta) guardiaFilter.fecha_inicio.lte = new Date(query.hasta)
+    }
+
+    const asignaciones = await prisma.asignacionGuardia.findMany({
+      where: {
+        usuario_id: user.sub,
+        Guardia: guardiaFilter,
+      },
+      include: {
+        Guardia: true,
+        RolGuardia: true,
+      },
+      orderBy: {
+        Guardia: {
+          fecha_inicio: 'asc',
+        },
+      },
+    })
+
+    res.json(asignaciones)
   } catch (e) {
     next(e)
   }
