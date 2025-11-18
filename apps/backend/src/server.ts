@@ -7,6 +7,8 @@ import authRouter from './modules/auth/router'
 import permisosRouter from './modules/permisos/router'
 import guardiasRouter from './modules/guardias/router'
 import equiposRouter from './modules/equipos/router'
+import usuariosRouter from './modules/usuarios/router'
+import delegacionesRouter from './modules/delegaciones/router'
 import { errorHandler } from './middlewares/errorHandler'
 
 const app = express()
@@ -21,6 +23,8 @@ app.use('/api/auth', authRouter)
 app.use('/api/permisos', permisosRouter)
 app.use('/api/guardias', guardiasRouter)
 app.use('/api/equipos', equiposRouter)
+app.use('/api/usuarios', usuariosRouter)
+app.use('/api/delegaciones', delegacionesRouter)
 
 app.use(errorHandler)
 
