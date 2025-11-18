@@ -118,6 +118,49 @@ router.get('/delegacion/:delegacionId', async (req, res, next) => {
   }
 })
 
+// GET /api/guardias/:id
+// Devuelve la guardia con sus asignaciones (usuarios + roles)
+// - ADMIN: puede ver cualquier guardia
+// - Otros roles: solo guardias de su delegación
+router.get('/:id', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    const guardiaId = Number(req.params.id)
+
+    if (Number.isNaN(guardiaId)) {
+      return res.status(400).json({ error: 'ID de guardia inválido' })
+    }
+
+    const rolCodigo = await getUserRoleCodigo(user)
+    const isAdmin = isAdminCodigo(rolCodigo)
+
+    const guardia = await prisma.guardia.findUnique({
+      where: { id: guardiaId },
+      include: {
+        Delegacion: true,
+        Asignaciones: {
+          include: {
+            Usuario: true,
+            RolGuardia: true,
+          },
+        },
+      },
+    })
+
+    if (!guardia) {
+      return res.status(404).json({ error: 'Guardia no encontrada' })
+    }
+
+    if (!isAdmin && guardia.delegacion_id !== user.deleg) {
+      return res.status(403).json({ error: 'No puedes ver guardias de otra delegación' })
+    }
+
+    res.json(guardia)
+  } catch (e) {
+    next(e)
+  }
+})
+
 router.post('/', authRequired, async (req, res, next) => {
   try {
     const user = req.user
