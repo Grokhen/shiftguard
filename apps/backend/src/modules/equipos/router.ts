@@ -61,6 +61,10 @@ const miembroEquipoSchema = z.object({
   usuario_id: z.number().int().positive(),
 })
 
+const listarEquiposQuerySchema = z.object({
+  delegacion_id: z.coerce.number().int().optional(),
+})
+
 const listarPermisosEquipoQuerySchema = z.object({
   anio: z.coerce.number().int().optional(),
 })
@@ -266,6 +270,35 @@ router.get('/:id/permisos', async (req, res, next) => {
     })
 
     res.json(permisos)
+  } catch (e) {
+    next(e)
+  }
+})
+
+router.get('/', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    const query = listarEquiposQuerySchema.parse(req.query)
+
+    const rolCodigo = await getUserRoleCodigo(user)
+    const isAdmin = isAdminCodigo(rolCodigo)
+
+    const where: any = {}
+
+    if (isAdmin) {
+      if (query.delegacion_id) {
+        where.delegacion_id = query.delegacion_id
+      }
+    } else {
+      where.delegacion_id = user.deleg
+    }
+
+    const equipos = await prisma.equipo.findMany({
+      where,
+      orderBy: { nombre_equipo: 'asc' },
+    })
+
+    res.json(equipos)
   } catch (e) {
     next(e)
   }
