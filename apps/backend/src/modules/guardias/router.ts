@@ -66,6 +66,33 @@ const asignacionGuardiaSchema = z.object({
   rol_guardia_id: z.number().int().positive(),
 })
 
+const actualizarGuardiaSchema = z
+  .object({
+    fecha_inicio: iso.optional(),
+    fecha_fin: iso.optional(),
+    estado: z.string().max(20).optional(),
+    asignaciones: z
+      .array(
+        z.object({
+          usuario_id: z.number().int().positive(),
+          rol_guardia_id: z.number().int().positive(),
+        }),
+      )
+      .optional(),
+  })
+  .refine(
+    (d) => {
+      if (d.fecha_inicio && d.fecha_fin) {
+        return new Date(d.fecha_fin) > new Date(d.fecha_inicio)
+      }
+      return true
+    },
+    {
+      path: ['fecha_fin'],
+      message: 'fecha_fin > fecha_inicio',
+    },
+  )
+
 router.get('/', async (req, res, next) => {
   try {
     const user = req.user
@@ -123,8 +150,6 @@ router.get('/delegacion/:delegacionId', async (req, res, next) => {
   }
 })
 
-// GET /api/guardias/mias
-// Guardias en las que el usuario autenticado está asignado
 router.get('/mias', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -160,10 +185,6 @@ router.get('/mias', async (req, res, next) => {
   }
 })
 
-// GET /api/guardias/:id
-// Devuelve la guardia con sus asignaciones (usuarios + roles)
-// - ADMIN: puede ver cualquier guardia
-// - Otros roles: solo guardias de su delegación
 router.get('/:id', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -232,6 +253,155 @@ router.post('/', authRequired, async (req, res, next) => {
     })
     res.status(201).json(created)
   } catch (e) {
+    next(e)
+  }
+})
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    const guardiaId = Number(req.params.id)
+
+    if (Number.isNaN(guardiaId)) {
+      return res.status(400).json({ error: 'ID de guardia inválido' })
+    }
+
+    await ensureSupervisorOrAdmin(user)
+    const dto = actualizarGuardiaSchema.parse(req.body)
+
+    const guardia = await prisma.guardia.findUnique({
+      where: { id: guardiaId },
+    })
+
+    if (!guardia) {
+      return res.status(404).json({ error: 'Guardia no encontrada' })
+    }
+
+    const rolCodigo = await getUserRoleCodigo(user)
+    const isAdmin = isAdminCodigo(rolCodigo)
+
+    if (!isAdmin && guardia.delegacion_id !== user.deleg) {
+      return res.status(403).json({ error: 'No puedes modificar guardias de otra delegación' })
+    }
+
+    const nuevaFechaInicio = dto.fecha_inicio ? new Date(dto.fecha_inicio) : guardia.fecha_inicio
+    const nuevaFechaFin = dto.fecha_fin ? new Date(dto.fecha_fin) : guardia.fecha_fin
+
+    const overlap = await prisma.guardia.findFirst({
+      where: {
+        delegacion_id: guardia.delegacion_id,
+        id: { not: guardiaId },
+        AND: [{ fecha_inicio: { lt: nuevaFechaFin } }, { fecha_fin: { gt: nuevaFechaInicio } }],
+      },
+    })
+
+    if (overlap) {
+      return res.status(400).json({
+        error: 'Las nuevas fechas solapan con otra guardia de esta delegación',
+      })
+    }
+
+    if (dto.asignaciones) {
+      const asignaciones = dto.asignaciones
+
+      const usuarioIds = asignaciones.map((a) => a.usuario_id)
+      const rolGuardiaIds = asignaciones.map((a) => a.rol_guardia_id)
+
+      if (new Set(usuarioIds).size !== usuarioIds.length) {
+        return res.status(400).json({
+          error: 'No se puede repetir un usuario en la misma guardia',
+        })
+      }
+
+      if (new Set(rolGuardiaIds).size !== rolGuardiaIds.length) {
+        return res.status(400).json({
+          error: 'No se puede repetir un rol de guardia en la misma guardia',
+        })
+      }
+
+      const usuarios = await prisma.usuario.findMany({
+        where: { id: { in: usuarioIds } },
+        select: { id: true, delegacion_id: true },
+      })
+
+      if (usuarios.length !== usuarioIds.length) {
+        return res.status(400).json({
+          error: 'Alguno de los usuarios no existe',
+        })
+      }
+
+      const usuariosOtraDelegacion = usuarios.filter(
+        (u) => u.delegacion_id !== guardia.delegacion_id,
+      )
+      if (usuariosOtraDelegacion.length > 0) {
+        return res.status(400).json({
+          error:
+            'Todos los usuarios asignados deben pertenecer a la misma delegación que la guardia',
+        })
+      }
+
+      const roles = await prisma.rolGuardia.findMany({
+        where: { id: { in: rolGuardiaIds } },
+        select: { id: true },
+      })
+
+      if (roles.length !== rolGuardiaIds.length) {
+        return res.status(400).json({
+          error: 'Alguno de los roles de guardia no existe',
+        })
+      }
+
+      await prisma.guardia.update({
+        where: { id: guardiaId },
+        data: {
+          fecha_inicio: nuevaFechaInicio,
+          fecha_fin: nuevaFechaFin,
+          estado: dto.estado ?? guardia.estado,
+        },
+      })
+
+      await prisma.asignacionGuardia.deleteMany({
+        where: { guardia_id: guardiaId },
+      })
+
+      if (asignaciones.length > 0) {
+        await prisma.asignacionGuardia.createMany({
+          data: asignaciones.map((a) => ({
+            guardia_id: guardiaId,
+            usuario_id: a.usuario_id,
+            rol_guardia_id: a.rol_guardia_id,
+          })),
+        })
+      }
+    } else {
+      await prisma.guardia.update({
+        where: { id: guardiaId },
+        data: {
+          fecha_inicio: nuevaFechaInicio,
+          fecha_fin: nuevaFechaFin,
+          estado: dto.estado ?? guardia.estado,
+        },
+      })
+    }
+
+    const guardiaActualizada = await prisma.guardia.findUnique({
+      where: { id: guardiaId },
+      include: {
+        Delegacion: true,
+        Asignaciones: {
+          include: {
+            Usuario: true,
+            RolGuardia: true,
+          },
+        },
+      },
+    })
+
+    res.json(guardiaActualizada)
+  } catch (e: any) {
+    if (e?.statusCode) {
+      return res.status(e.statusCode).json({ error: e.message })
+    }
     next(e)
   }
 })
