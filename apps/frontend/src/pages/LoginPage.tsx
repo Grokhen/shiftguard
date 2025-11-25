@@ -1,15 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { FormEvent } from 'react'
-import { login } from '../services/authService'
-import { parseJwt } from '../utils/jwt'
+import { useAuth } from '../hooks/useAuth'
+import { ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECNICO } from '../constants/roles'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState('admin@empresa.local')
-  const [password, setPassword] = useState('Admin1234!')
+  const { signIn, isAuthenticated, user } = useAuth()
+  const [email, setEmail] = useState('admin@empresa.lo')
+  const [password, setPassword] = useState('Admin12')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return
+
+    if (user.role === ROLE_TECNICO) {
+      navigate('/tecnico', { replace: true })
+    } else if (user.role === ROLE_SUPERVISOR) {
+      navigate('/supervisor', { replace: true })
+    } else if (user.role === ROLE_ADMIN) {
+      navigate('/admin', { replace: true })
+    }
+  }, [isAuthenticated, user, navigate])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -17,27 +30,7 @@ export function LoginPage() {
     setError(null)
 
     try {
-      const { access_token } = await login(email, password)
-
-      localStorage.setItem('access_token', access_token)
-
-      const payload = parseJwt(access_token)
-
-      if (!payload) {
-        throw new Error('Token recibido inválido')
-      }
-
-      const roleId = payload.role
-      localStorage.setItem('user_role_id', String(roleId))
-      localStorage.setItem('user_delegacion_id', String(payload.deleg))
-
-      if (roleId === 1) {
-        navigate('/tecnico', { replace: true })
-      } else if (roleId === 2) {
-        navigate('/supervisor', { replace: true })
-      } else {
-        navigate('/admin', { replace: true })
-      }
+      await signIn(email, password)
     } catch (err) {
       console.error(err)
       setError(

@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
+import { ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECNICO } from '../../constants/roles'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -7,7 +9,28 @@ interface AppLayoutProps {
   subtitle?: string
 }
 
+function roleLabel(roleId?: number | null) {
+  switch (roleId) {
+    case ROLE_TECNICO:
+      return 'Técnico'
+    case ROLE_SUPERVISOR:
+      return 'Supervisor'
+    case ROLE_ADMIN:
+      return 'Administrador'
+    default:
+      return 'Usuario'
+  }
+}
+
 export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    signOut()
+    navigate('/', { replace: true })
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <header className="border-b border-slate-200 bg-white">
@@ -20,7 +43,13 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
           </Link>
 
           <div className="flex items-center gap-3 text-sm text-slate-500">
-            <span className="hidden sm:inline">Usuario</span>
+            <span className="hidden sm:inline">{roleLabel(user?.role)}</span>
+            <button
+              onClick={handleLogout}
+              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Cerrar sesión
+            </button>
             <div className="h-8 w-8 rounded-full bg-slate-200" />
           </div>
         </div>
