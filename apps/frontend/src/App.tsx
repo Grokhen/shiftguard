@@ -4,6 +4,8 @@ import { LoginPage } from './pages/LoginPage'
 import { TechnicianDashboard } from './pages/TechnicianDashboard'
 import { SupervisorDashboard } from './pages/SupervisorDashboard'
 import { AdminDashboard } from './pages/AdminDashboard'
+import { ProtectedRoute } from './components/routing/ProtectedRoute'
+import { ROLE_TECNICO, ROLE_SUPERVISOR, ROLE_ADMIN } from './constants/roles'
 
 function App() {
   return (
@@ -13,30 +15,36 @@ function App() {
       <Route
         path="/tecnico"
         element={
-          <AppLayout title="Panel de técnico" subtitle="Resumen de tus guardias y vacaciones.">
-            <TechnicianDashboard />
-          </AppLayout>
+          <ProtectedRoute allowedRoles={[ROLE_TECNICO]}>
+            <AppLayout title="Panel de técnico" subtitle="Resumen de tus guardias y vacaciones.">
+              <TechnicianDashboard />
+            </AppLayout>
+          </ProtectedRoute>
         }
       />
 
       <Route
         path="/supervisor"
         element={
-          <AppLayout title="Panel de supervisor" subtitle="Guardias y permisos de tu delegación.">
-            <SupervisorDashboard />
-          </AppLayout>
+          <ProtectedRoute allowedRoles={[ROLE_SUPERVISOR]}>
+            <AppLayout title="Panel de supervisor" subtitle="Guardias y permisos de tu delegación.">
+              <SupervisorDashboard />
+            </AppLayout>
+          </ProtectedRoute>
         }
       />
 
       <Route
         path="/admin"
         element={
-          <AppLayout
-            title="Panel de administración"
-            subtitle="Gestión de usuarios, delegaciones y permisos."
-          >
-            <AdminDashboard />
-          </AppLayout>
+          <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
+            <AppLayout
+              title="Panel de administración"
+              subtitle="Gestión de usuarios, delegaciones y permisos."
+            >
+              <AdminDashboard />
+            </AppLayout>
+          </ProtectedRoute>
         }
       />
 
