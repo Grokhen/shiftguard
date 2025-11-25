@@ -1,27 +1,51 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { FormEvent } from 'react'
+import { login } from '../services/authService'
+import { parseJwt } from '../utils/jwt'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('admin@empresa.local')
   const [password, setPassword] = useState('Admin1234!')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setError(null)
 
-    setTimeout(() => {
-      if (email.startsWith('tec')) {
-        navigate('/tecnico')
-      } else if (email.startsWith('sup')) {
-        navigate('/supervisor')
-      } else {
-        navigate('/admin')
+    try {
+      const { access_token } = await login(email, password)
+
+      localStorage.setItem('access_token', access_token)
+
+      const payload = parseJwt(access_token)
+
+      if (!payload) {
+        throw new Error('Token recibido inválido')
       }
+
+      const roleId = payload.role
+      localStorage.setItem('user_role_id', String(roleId))
+      localStorage.setItem('user_delegacion_id', String(payload.deleg))
+
+      if (roleId === 1) {
+        navigate('/tecnico', { replace: true })
+      } else if (roleId === 2) {
+        navigate('/supervisor', { replace: true })
+      } else {
+        navigate('/admin', { replace: true })
+      }
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : 'No se ha podido iniciar sesión. Inténtalo de nuevo.',
+      )
+    } finally {
       setIsSubmitting(false)
-    }, 500)
+    }
   }
 
   return (
@@ -71,6 +95,8 @@ export function LoginPage() {
           >
             {isSubmitting ? 'Entrando…' : 'Entrar'}
           </button>
+
+          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </form>
 
         <p className="mt-4 text-center text-xs text-slate-400">Versión demo - ShiftGuard © 2025</p>
