@@ -60,12 +60,6 @@ async function ensureSupervisorOrAdmin(user: AuthUser) {
   }
 }
 
-// ---------- GET catálogos: tipos y estados ----------
-
-/**
- * GET /api/permisos/tipos
- * Devuelve el catálogo de tipos de permiso.
- */
 router.get('/tipos', async (_req, res, next) => {
   try {
     const tipos = await prisma.tipoPermiso.findMany({
@@ -77,10 +71,6 @@ router.get('/tipos', async (_req, res, next) => {
   }
 })
 
-/**
- * GET /api/permisos/estados
- * Devuelve el catálogo de estados de permiso.
- */
 router.get('/estados', async (_req, res, next) => {
   try {
     const estados = await prisma.estadoPermiso.findMany({
@@ -92,12 +82,6 @@ router.get('/estados', async (_req, res, next) => {
   }
 })
 
-// ---------- GET /api/permisos/mios ----------
-
-/**
-  Lista los permisos del usuario autenticado.
-  Filtros opcionales: anio, tipo_id, estado_id.
- */
 router.get('/mios', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -137,8 +121,6 @@ router.get('/mios', async (req, res, next) => {
   }
 })
 
-// GET /api/permisos/usuario/:id
-// Lista permisos de un usuario concreto (solo SUPERVISOR/ADMIN)
 router.get('/usuario/:id', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
@@ -181,20 +163,12 @@ router.get('/usuario/:id', async (req, res, next) => {
   }
 })
 
-// ---------- POST /api/permisos ----------
-
-/**
- Crea un permiso para el usuario autenticado.
-  - usuario_id = req.user.sub (no viene del cliente)
-  - estado_id = ID del estado PENDIENTE (buscado en EstadoPermiso)
- */
 router.post('/', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
 
     const dto = crearPermisoSchema.parse(req.body)
 
-    // Comprobamos que el tipo existe
     const tipo = await prisma.tipoPermiso.findUnique({
       where: { id: dto.tipo_id },
     })
@@ -203,7 +177,6 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: `Tipo de permiso no válido: ${dto.tipo_id}` })
     }
 
-    // Estado inicial siempre PENDIENTE
     const estadoPendiente = await prisma.estadoPermiso.findUnique({
       where: { codigo: 'PENDIENTE' },
     })
@@ -236,13 +209,6 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// ---------- PATCH /api/permisos/:id/decidir ----------
-
-/**
-  Cambia el estado de un permiso (APROBADO, RECHAZADO, CANCELADO, etc.).
-  - Solo puede usarlo SUPERVISOR o ADMIN.
-  - Solo permite cambiar permisos que están en estado PENDIENTE.
- */
 router.patch('/:id/decidir', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -266,9 +232,6 @@ router.patch('/:id/decidir', async (req, res, next) => {
     if (!permiso) {
       return res.status(404).json({ error: 'Permiso no encontrado' })
     }
-
-    // const usuarioPermiso = await prisma.usuario.findUnique({ where: { id: permiso.usuario_id } })
-    // if (usuarioPermiso?.delegacion_id !== user.deleg) { ... }
 
     if (permiso.Estado.codigo !== 'PENDIENTE') {
       return res.status(400).json({
