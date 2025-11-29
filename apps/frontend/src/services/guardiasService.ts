@@ -1,4 +1,4 @@
-import { authorizedGet } from './apiClient'
+import { authorizedGet, authorizedPost, authorizedPatch } from './apiClient'
 
 export type Guardia = {
   id: number
@@ -90,4 +90,38 @@ export async function getGuardiaDetalle(
 ): Promise<GuardiaDetalle> {
   const path = `/api/guardias/${guardiaId}`
   return authorizedGet<GuardiaDetalle>(path, accessToken)
+}
+
+export type CrearGuardiaInput = {
+  fecha_inicio: string
+  fecha_fin: string
+  estado?: string
+}
+
+export type AsignacionGuardiaPayload = {
+  usuario_id: number
+  rol_guardia_id: number
+}
+
+export type ActualizarGuardiaInput = {
+  fecha_inicio?: string
+  fecha_fin?: string
+  estado?: string
+  asignaciones?: AsignacionGuardiaPayload[]
+}
+
+export async function crearGuardia(
+  accessToken: string,
+  input: CrearGuardiaInput,
+): Promise<Guardia> {
+  return authorizedPost<Guardia>('/api/guardias', accessToken, input)
+}
+
+export async function actualizarGuardia(
+  accessToken: string,
+  guardiaId: number,
+  input: ActualizarGuardiaInput,
+): Promise<GuardiaDetalle> {
+  const path = `/api/guardias/${guardiaId}`
+  return authorizedPatch<GuardiaDetalle>(path, accessToken, input)
 }
