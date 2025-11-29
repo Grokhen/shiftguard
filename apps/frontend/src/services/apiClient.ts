@@ -10,7 +10,7 @@ async function handleResponse<T>(res: Response, path: string): Promise<T> {
         message = data.message
       }
     } catch {
-      // mensaje genérico
+      // mensaje de error genérico
     }
 
     throw new Error(message)
@@ -25,6 +25,19 @@ export async function authorizedGet<T>(path: string, token: string): Promise<T> 
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  })
+
+  return handleResponse<T>(res, path)
+}
+
+export async function authorizedPost<T>(path: string, token: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
   })
 
   return handleResponse<T>(res, path)

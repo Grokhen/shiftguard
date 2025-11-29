@@ -43,3 +43,51 @@ export async function getMyShifts(
 
   return authorizedGet<AsignacionGuardia[]>(path, accessToken)
 }
+
+export type Delegacion = {
+  id: number
+  nombre: string
+  codigo?: string | null
+  pais_code?: string | null
+  region_code?: string | null
+  activo: boolean
+}
+
+export type UsuarioGuardia = {
+  id: number
+  nombre: string
+  apellidos: string
+  email: string
+  delegacion_id: number
+  activo?: boolean
+}
+
+export type AsignacionGuardiaConUsuario = {
+  id: number
+  guardia_id: number
+  usuario_id: number
+  rol_guardia_id: number
+  Usuario: UsuarioGuardia
+  RolGuardia: RolGuardia
+}
+
+export type GuardiaDetalle = Guardia & {
+  Delegacion: Delegacion
+  Asignaciones: AsignacionGuardiaConUsuario[]
+}
+
+export async function getGuardiasDelegacion(
+  accessToken: string,
+  delegacionId: number,
+): Promise<Guardia[]> {
+  const path = `/api/guardias/delegacion/${delegacionId}`
+  return authorizedGet<Guardia[]>(path, accessToken)
+}
+
+export async function getGuardiaDetalle(
+  accessToken: string,
+  guardiaId: number,
+): Promise<GuardiaDetalle> {
+  const path = `/api/guardias/${guardiaId}`
+  return authorizedGet<GuardiaDetalle>(path, accessToken)
+}
