@@ -46,22 +46,22 @@ export function AdminDashboard() {
       </section>
 
       <section className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-2 text-sm font-semibold text-slate-900 sm:text-base">Permisos</h2>
+        <h2 className="mb-2 text-sm font-semibold text-slate-900 sm:text-base">Equipos</h2>
         <p className="mb-4 text-sm text-slate-500">
-          Revisión de permisos, estados y configuración de tipos.
+          Creación y gestión de equipos, y asignación de usuarios.
         </p>
         <div className="mt-auto flex flex-col gap-2 text-sm">
           <Link
-            to="/admin/permisos"
+            to="/admin/equipos"
             className="rounded-lg bg-blue-600 px-3 py-2 text-center font-medium text-white hover:bg-blue-700"
           >
-            Ver permisos
+            Ver equipos
           </Link>
           <Link
-            to="/admin/tipos-permiso"
+            to="/admin/equipos/nuevo"
             className="rounded-lg border border-blue-100 px-3 py-2 text-center font-medium text-blue-600 hover:bg-blue-50"
           >
-            Configurar tipos / estados
+            Crear equipo
           </Link>
         </div>
       </section>
