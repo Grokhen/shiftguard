@@ -42,3 +42,16 @@ export async function authorizedPost<T>(path: string, token: string, body: unkno
 
   return handleResponse<T>(res, path)
 }
+
+export async function authorizedPatch<T>(path: string, token: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  return handleResponse<T>(res, path)
+}
