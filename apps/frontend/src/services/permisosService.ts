@@ -1,4 +1,4 @@
-import { authorizedGet, authorizedPost } from './apiClient'
+import { authorizedGet, authorizedPost, authorizedPatch } from './apiClient'
 
 export type TipoPermiso = {
   id: number
@@ -89,4 +89,22 @@ export async function getPermisosEquipo(
   const path = qs ? `/api/equipos/${equipoId}/permisos?${qs}` : `/api/equipos/${equipoId}/permisos`
 
   return authorizedGet<PermisoEquipo[]>(path, accessToken)
+}
+
+export async function getEstadosPermiso(accessToken: string): Promise<EstadoPermiso[]> {
+  return authorizedGet<EstadoPermiso[]>('/api/permisos/estados', accessToken)
+}
+
+export type DecidirPermisoInput = {
+  estado_id: number
+  observaciones?: string
+}
+
+export async function decidirPermiso(
+  accessToken: string,
+  permisoId: number,
+  input: DecidirPermisoInput,
+): Promise<Permiso> {
+  const path = `/api/permisos/${permisoId}/decidir`
+  return authorizedPatch<Permiso>(path, accessToken, input)
 }
