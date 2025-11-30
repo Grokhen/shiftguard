@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+//import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getMyShifts, type AsignacionGuardia } from '../services/guardiasService'
 import {
@@ -207,14 +207,14 @@ export function TechnicianDashboard() {
           </p>
         )}
 
-        <div className="mt-4">
+        {/*<div className="mt-4">
           <Link
             to="/guardias/mias"
             className="text-sm font-medium text-blue-600 hover:text-blue-700"
           >
             Ver todas mis guardias →
           </Link>
-        </div>
+        </div>*/}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
