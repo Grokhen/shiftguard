@@ -55,3 +55,29 @@ export async function authorizedPatch<T>(path: string, token: string, body: unkn
 
   return handleResponse<T>(res, path)
 }
+
+export async function authorizedDelete(path: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!res.ok) {
+    let message = `Error ${res.status} al llamar a ${path}`
+
+    try {
+      const data = await res.json()
+      if (data?.message) {
+        message = data.message
+      } else if (data?.error) {
+        message = data.error
+      }
+    } catch {
+      // mensaje de error genérico
+    }
+
+    throw new Error(message)
+  }
+}

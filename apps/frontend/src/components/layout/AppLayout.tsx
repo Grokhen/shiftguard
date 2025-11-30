@@ -31,6 +31,28 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
     navigate('/', { replace: true })
   }
 
+  const handleGoHome = () => {
+    const roleId = user?.role
+
+    let path = '/'
+
+    switch (roleId) {
+      case ROLE_ADMIN:
+        path = '/admin'
+        break
+      case ROLE_SUPERVISOR:
+        path = '/supervisor'
+        break
+      case ROLE_TECNICO:
+        path = '/tecnico'
+        break
+      default:
+        path = '/'
+    }
+
+    navigate(path)
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <header className="border-b border-slate-200 bg-white">
@@ -50,7 +72,26 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
             >
               Cerrar sesión
             </button>
-            <div className="h-8 w-8 rounded-full bg-slate-200" />
+            <button
+              type="button"
+              onClick={handleGoHome}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-700 hover:bg-slate-300"
+              aria-label="Ir a la página principal"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 10v10h14V10" />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
