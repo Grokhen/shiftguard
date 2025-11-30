@@ -65,19 +65,30 @@ export function TechnicianDashboard() {
     if (!shifts.length) return null
 
     const now = new Date()
+    const nowTime = now.getTime()
 
-    const futureShifts = shifts.filter((asig) => {
-      const start = new Date(asig.Guardia.fecha_inicio)
-      return start.getTime() >= now.getTime()
+    const currentShift = shifts.find((asig) => {
+      const startTime = new Date(asig.Guardia.fecha_inicio).getTime()
+      const endTime = new Date(asig.Guardia.fecha_fin).getTime()
+      return startTime <= nowTime && nowTime <= endTime
     })
+
+    if (currentShift) {
+      return currentShift
+    }
+
+    const futureShifts = shifts
+      .filter((asig) => {
+        const startTime = new Date(asig.Guardia.fecha_inicio).getTime()
+        return startTime >= nowTime
+      })
+      .sort((a, b) => {
+        const aStart = new Date(a.Guardia.fecha_inicio).getTime()
+        const bStart = new Date(b.Guardia.fecha_inicio).getTime()
+        return aStart - bStart
+      })
 
     if (!futureShifts.length) return null
-
-    futureShifts.sort((a, b) => {
-      const aStart = new Date(a.Guardia.fecha_inicio).getTime()
-      const bStart = new Date(b.Guardia.fecha_inicio).getTime()
-      return aStart - bStart
-    })
 
     return futureShifts[0]
   }, [shifts])
@@ -174,13 +185,21 @@ export function TechnicianDashboard() {
     )
   }
 
+  const now = new Date()
+
+  const isCurrentShift =
+    !!nextShift &&
+    new Date(nextShift.Guardia.fecha_inicio).getTime() <= now.getTime() &&
+    now.getTime() <= new Date(nextShift.Guardia.fecha_fin).getTime()
+
   return (
     <div className="flex flex-col gap-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
-            Tu siguiente guardia
+            {isCurrentShift ? 'Tu guardia actual' : 'Tu siguiente guardia'}
           </h2>
+
           {nextShift && (
             <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
               {nextShift.Guardia.estado}
@@ -191,12 +210,16 @@ export function TechnicianDashboard() {
         {nextShift ? (
           <div className="space-y-1 text-sm">
             <p className="font-medium text-slate-900">
-              {formatDateLong(nextShift.Guardia.fecha_inicio)}
+              {isCurrentShift
+                ? 'Estás de guardia ahora mismo'
+                : formatDateLong(nextShift.Guardia.fecha_inicio)}
             </p>
+
             <p className="text-slate-600">
               {formatTime(nextShift.Guardia.fecha_inicio)} —{' '}
               {formatTime(nextShift.Guardia.fecha_fin)}
             </p>
+
             <p className="text-slate-500">
               Rol: {nextShift.RolGuardia.nombre} ({nextShift.RolGuardia.codigo})
             </p>

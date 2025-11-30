@@ -7,8 +7,8 @@ import { ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECNICO } from '../constants/roles'
 export function LoginPage() {
   const navigate = useNavigate()
   const { signIn, isAuthenticated, user } = useAuth()
-  const [email, setEmail] = useState('admin@empresa.lo')
-  const [password, setPassword] = useState('Admin12')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
