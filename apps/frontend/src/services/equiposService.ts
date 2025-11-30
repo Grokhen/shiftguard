@@ -1,4 +1,4 @@
-import { authorizedGet } from './apiClient'
+import { authorizedGet, authorizedPost, authorizedPatch } from './apiClient'
 
 export type Equipo = {
   id: number
@@ -35,4 +35,27 @@ export async function getEquipoDetalle(
 ): Promise<EquipoDetalle> {
   const path = `/api/equipos/${equipoId}`
   return authorizedGet<EquipoDetalle>(path, accessToken)
+}
+
+export type CrearEquipoInput = {
+  nombre_equipo: string
+  delegacion_id: number
+}
+
+export type ActualizarEquipoInput = {
+  nombre_equipo?: string
+  delegacion_id?: number
+}
+
+export async function crearEquipo(accessToken: string, payload: CrearEquipoInput): Promise<Equipo> {
+  return authorizedPost<Equipo>('/api/equipos', accessToken, payload)
+}
+
+export async function actualizarEquipo(
+  accessToken: string,
+  equipoId: number,
+  payload: ActualizarEquipoInput,
+): Promise<Equipo> {
+  const path = `/api/equipos/${equipoId}`
+  return authorizedPatch<Equipo>(path, accessToken, payload)
 }
