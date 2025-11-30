@@ -43,7 +43,6 @@ const editarDelegacionSchema = z.object({
   activo: z.boolean().optional(),
 })
 
-// POST /api/delegaciones  (admin)
 router.post('/', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -67,7 +66,6 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// GET /api/delegaciones  (admin)
 router.get('/', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -83,7 +81,6 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-// PATCH /api/delegaciones/:id  (admin)
 router.patch('/:id', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
