@@ -1,7 +1,8 @@
 import { authorizedGet, authorizedPost, authorizedPatch } from './apiClient'
 import type { UsuarioBasico } from './equiposService'
 
-export type Usuario = UsuarioBasico & {
+export type Usuario = Omit<UsuarioBasico, 'activo'> & {
+  activo: boolean
   rol_id: number
   requiere_reset?: boolean
   ultimo_login?: string | null

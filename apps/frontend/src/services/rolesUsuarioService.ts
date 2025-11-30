@@ -12,7 +12,7 @@ export type ActualizarRolUsuarioInput = {
 }
 
 export async function getRolesUsuario(accessToken: string): Promise<RolUsuario[]> {
-  const path = '/api/roles-usuario'
+  const path = '/api/rolesUsuario'
   return authorizedGet<RolUsuario[]>(path, accessToken)
 }
 
@@ -21,6 +21,6 @@ export async function actualizarRolUsuario(
   id: number,
   payload: ActualizarRolUsuarioInput,
 ): Promise<RolUsuario> {
-  const path = `/api/roles-usuario/${id}`
+  const path = `/api/rolesUsuario/${id}`
   return authorizedPatch<RolUsuario>(path, accessToken, payload)
 }
