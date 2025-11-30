@@ -96,6 +96,44 @@ router.post('/', async (req, res, next) => {
   }
 })
 
+router.get('/:id', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    await ensureSupervisorOrAdmin(user)
+
+    const equipoId = Number(req.params.id)
+    if (Number.isNaN(equipoId)) {
+      return res.status(400).json({ error: 'ID de equipo inválido' })
+    }
+
+    const equipo = await prisma.equipo.findUnique({
+      where: { id: equipoId },
+      include: {
+        Miembros: {
+          include: {
+            Usuario: true,
+          },
+        },
+      },
+    })
+
+    if (!equipo) {
+      return res.status(404).json({ error: 'Equipo no encontrado' })
+    }
+
+    const rolCodigo = await getUserRoleCodigo(user)
+    const isAdmin = isAdminCodigo(rolCodigo)
+
+    if (!isAdmin && equipo.delegacion_id !== user.deleg) {
+      return res.status(403).json({ error: 'No puedes consultar equipos de otra delegación' })
+    }
+
+    res.json(equipo)
+  } catch (e) {
+    next(e)
+  }
+})
+
 router.patch('/:id', async (req, res, next) => {
   try {
     const user = req.user as AuthUser

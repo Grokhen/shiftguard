@@ -53,7 +53,10 @@ const editarUsuarioSchema = z.object({
 const listarUsuariosQuerySchema = z.object({
   delegacion_id: z.coerce.number().int().optional(),
   rol_id: z.coerce.number().int().optional(),
-  activo: z.coerce.boolean().optional(),
+  activo: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 })
 
 const editarPerfilPropioSchema = z.object({
@@ -66,7 +69,6 @@ const cambiarPasswordSchema = z.object({
   password_nueva: z.string().min(8),
 })
 
-// POST /api/usuarios  (admin)
 router.post('/', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
@@ -105,7 +107,6 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// PATCH /api/usuarios/:id  (admin)
 router.patch('/:id', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
@@ -137,8 +138,6 @@ router.patch('/:id', async (req, res, next) => {
   }
 })
 
-// GET /api/usuarios  (admin)
-// Listado de usuarios con filtros opcionales
 router.get('/', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
@@ -174,10 +173,6 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-/**
-  GET /api/usuarios/me
-  Devuelve el perfil del usuario autenticado
- */
 router.get('/me', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
@@ -208,10 +203,6 @@ router.get('/me', async (req, res, next) => {
   }
 })
 
-/**
-  PATCH /api/usuarios/me
-  Permite al usuario editar su propio perfil (solo campos seguros)
- */
 router.patch('/me', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
@@ -240,12 +231,6 @@ router.patch('/me', async (req, res, next) => {
   }
 })
 
-/**
-  PATCH /api/usuarios/me/password
-  Cambiar la contraseña propia:
-  - Requiere contraseña actual
-  - Aplica pepper + argon2
- */
 router.patch('/me/password', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
