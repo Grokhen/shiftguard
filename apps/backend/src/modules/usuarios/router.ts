@@ -53,7 +53,10 @@ const editarUsuarioSchema = z.object({
 const listarUsuariosQuerySchema = z.object({
   delegacion_id: z.coerce.number().int().optional(),
   rol_id: z.coerce.number().int().optional(),
-  activo: z.coerce.boolean().optional(),
+  activo: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 })
 
 const editarPerfilPropioSchema = z.object({
