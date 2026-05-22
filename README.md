@@ -19,7 +19,7 @@ ShiftGuard es una plataforma interna para coordinar guardias técnicas y gestion
 
 ## Requisitos previos
 
-- Node.js 20+
+- Node.js `20.19+` o `22.12+` (ver [.nvmrc](.nvmrc))
 - PostgreSQL 14+
 - npm o pnpm (ejemplos usando `npm`)
 - Docker opcional (ver [docker-compose.yml](docker-compose.yml))

@@ -137,11 +137,11 @@ Objetivo: estabilizar ejecucion local y CI.
 
 Tareas:
 
-- Subir Node local a `20.19+` o `22.12+` para Vite.
+- Node local fijado en `.nvmrc` a `22.12.0`; usar `nvm use` antes de builds frontend.
 - CI usa Node 22 para evitar incompatibilidades con Vite.
 - Revisar vulnerabilidades reportadas por `npm audit`.
 - No ejecutar `npm audit fix` a ciegas; revisar cambios antes.
-- Considerar `.nvmrc` o `engines` para fijar version de Node.
+- `engines` declara Node `^20.19.0 || >=22.12.0` y npm `>=10`.
 - Mantener workflow CI con tests backend, build backend, lint frontend y build frontend.
 
 ## Cambios propuestos para AGENTS.md
@@ -162,5 +162,5 @@ Completar el flujo Git de la rama de CI y abrir PR contra `main`.
 Despues del merge:
 
 1. Valorar tests de integracion con PostgreSQL de test.
-2. Revisar `.nvmrc` o `engines` para fijar version de Node local.
+2. Actualizar Node local con `nvm use` y repetir builds frontend sin avisos de version.
 3. Definir siguiente bloque funcional: robustez de guardias, seguridad de sesion o auditoria.
