@@ -5,42 +5,47 @@ Este documento lista las siguientes tareas sugeridas para continuar el proyecto 
 ## Estado de partida
 
 - `main` contiene la primera PR de hardening inicial.
-- La rama `codex/guard-role-and-authz-cleanup` contiene la segunda tanda:
+- `main` tambien contiene la PR `codex/guard-role-and-authz-cleanup`:
   - roles de guardia por codigo;
   - creacion atomica de guardias con asignaciones;
   - autorizacion compartida;
   - CORS configurable.
-- No hay tests automatizados reales.
-- La verificacion manual de build/lint paso correctamente.
+- La rama `codex/backend-tests-foundation` introduce una base inicial de tests backend.
+- La verificacion de tests/build backend paso correctamente.
 
-## Prioridad 1 - Tests automatizados backend
+## Prioridad 1 - Ampliar tests automatizados backend
 
 Objetivo: proteger la seguridad y reglas de negocio ya corregidas.
 
-Tareas:
+Ya cubierto en la base inicial:
 
-- Elegir runner de tests backend.
-- Anadir configuracion de test sin romper scripts existentes.
-- Crear tests para `auth/router`:
+- Vitest y Supertest configurados en backend.
+- Express separado en `src/app.ts` para poder importar la app sin levantar el listener de produccion.
+- Tests para `auth/router`:
   - login correcto;
   - credenciales invalidas;
   - usuario inactivo;
   - usuario bloqueado.
-- Crear tests para autorizacion:
-  - admin requerido en usuarios/delegaciones/roles;
-  - supervisor/admin requerido en guardias/equipos/permisos.
-- Crear tests para aislamiento por delegacion:
-  - supervisor no puede ver/modificar recursos de otra delegacion;
-  - admin si puede operar globalmente.
-- Crear tests para guardias:
+- Tests para autorizacion:
+  - admin requerido en usuarios;
+  - supervisor/admin requerido en guardias;
+  - aislamiento por delegacion en guardias.
+- Tests para guardias:
   - creacion con asignaciones;
   - rechazo de solapes;
   - rechazo de usuarios de otra delegacion;
   - rechazo de roles repetidos.
-- Crear tests para permisos:
+- Tests para permisos:
   - tecnico solicita permiso;
   - supervisor decide permiso de su delegacion;
   - supervisor no decide permiso de otra delegacion.
+
+Tareas pendientes:
+
+- Cubrir delegaciones, roles de usuario y equipos con mas profundidad.
+- Anadir edge cases de permisos no pendientes, estados invalidos y tipos invalidos.
+- Decidir si se anaden tests de integracion con PostgreSQL real para flujos criticos.
+- Anadir CI para ejecutar tests y builds en cada PR.
 
 ## Prioridad 2 - Robustez de guardias
 
@@ -128,11 +133,10 @@ No se han aplicado todavia. Propuesta:
 
 ## Siguiente tarea concreta
 
-Empezar por tests backend de autenticacion y autorizacion.
+Completar el flujo Git de la rama de tests backend y abrir PR contra `main`.
 
-Primer paso sugerido:
+Despues del merge:
 
-1. Elegir runner de tests.
-2. Anadir script `test` real al backend.
-3. Crear pruebas del login y de `authRequired`.
-4. Ejecutar build backend para confirmar que la configuracion no rompe TypeScript.
+1. Crear CI con tests backend y builds.
+2. Ampliar tests backend para equipos, delegaciones y roles.
+3. Valorar tests de integracion con PostgreSQL de test.

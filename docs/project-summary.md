@@ -69,7 +69,7 @@ El MVP actual cubre:
 
 ## Funcionalidades dejadas para futuras versiones
 
-- Tests automatizados de backend y frontend.
+- Ampliar tests automatizados de backend y anadir tests frontend/E2E.
 - OpenAPI o documentacion formal de endpoints.
 - Refresh tokens o estrategia de sesion mas completa.
 - Recuperacion de password.
@@ -196,7 +196,7 @@ Relaciones importantes:
 
 ## Decisiones pendientes
 
-- Framework de testing backend.
+- Estrategia de tests de integracion backend con base de datos real.
 - Framework de testing frontend/E2E.
 - Estrategia para refresh tokens o renovacion de sesion.
 - Politica de bloqueo por intentos fallidos.
@@ -208,7 +208,8 @@ Relaciones importantes:
 
 ## Riesgos tecnicos
 
-- No hay tests automatizados.
+- Hay una base inicial de tests backend con Vitest y Supertest, usando mocks de Prisma y Argon2.
+- Falta cobertura de integracion contra PostgreSQL real y tests frontend/E2E.
 - La logica de negocio sigue bastante mezclada con routers.
 - La prevencion de solapes de guardia vive principalmente en codigo de aplicacion.
 - Algunas operaciones de permisos y guardias necesitan mas cobertura de edge cases.
@@ -352,7 +353,7 @@ cd apps/backend
 npm test
 ```
 
-Nota: el test backend es todavia un placeholder que falla. No hay tests automatizados reales.
+Nota: los tests backend actuales usan mocks y no requieren PostgreSQL de test.
 
 ## Verificacion ejecutada
 
@@ -362,6 +363,7 @@ En las ultimas tandas se ejecuto:
 npm_config_cache=/private/tmp/npm-cache-shiftguard-clean npm run build:backend
 npm_config_cache=/private/tmp/npm-cache-shiftguard-clean npm run lint:frontend
 npm_config_cache=/private/tmp/npm-cache-shiftguard-clean npm run build:frontend
+npm run test --workspace backend
 ```
 
 Resultado: correcto.
@@ -374,13 +376,11 @@ Avisos conocidos:
 
 ## Siguiente tarea recomendada
 
-La siguiente tarea recomendada es introducir una base de tests automatizados de backend para proteger lo ya corregido:
+La siguiente tarea recomendada es ampliar la cobertura automatizada y preparar integracion continua:
 
-- login;
-- rechazo de usuarios inactivos/bloqueados;
-- rutas protegidas por rol;
-- aislamiento por delegacion;
-- creacion atomica de guardias con asignaciones;
-- decision de permisos solo dentro de delegacion.
+- anadir tests de integracion backend contra una base PostgreSQL de test;
+- ampliar cobertura de administracion, equipos y edge cases de permisos;
+- anadir CI con `npm run test --workspace backend`, build backend, lint frontend y build frontend;
+- mantener los tests existentes de auth, autorizacion, guardias y permisos como red de seguridad.
 
 Antes de seguir con nuevas funcionalidades, conviene asegurar estos flujos para que las siguientes refactorizaciones sean seguras.
