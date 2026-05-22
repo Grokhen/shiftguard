@@ -10,7 +10,8 @@ Este documento lista las siguientes tareas sugeridas para continuar el proyecto 
   - creacion atomica de guardias con asignaciones;
   - autorizacion compartida;
   - CORS configurable.
-- La rama `codex/backend-tests-foundation` introduce una base inicial de tests backend.
+- `main` tambien contiene la PR `codex/backend-tests-foundation`, con base inicial de tests backend.
+- La rama `codex/add-ci-workflow` introduce CI para PRs y pushes a `main`.
 - La verificacion de tests/build backend paso correctamente.
 
 ## Prioridad 1 - Ampliar tests automatizados backend
@@ -45,7 +46,7 @@ Tareas pendientes:
 - Cubrir delegaciones, roles de usuario y equipos con mas profundidad.
 - Anadir edge cases de permisos no pendientes, estados invalidos y tipos invalidos.
 - Decidir si se anaden tests de integracion con PostgreSQL real para flujos criticos.
-- Anadir CI para ejecutar tests y builds en cada PR.
+- Mantener CI como puerta de entrada para tests y builds en cada PR.
 
 ## Prioridad 2 - Robustez de guardias
 
@@ -114,11 +115,12 @@ Objetivo: estabilizar ejecucion local y CI.
 
 Tareas:
 
-- Subir Node local/CI a `20.19+` o `22.12+` para Vite.
+- Subir Node local a `20.19+` o `22.12+` para Vite.
+- CI usa Node 22 para evitar incompatibilidades con Vite.
 - Revisar vulnerabilidades reportadas por `npm audit`.
 - No ejecutar `npm audit fix` a ciegas; revisar cambios antes.
 - Considerar `.nvmrc` o `engines` para fijar version de Node.
-- Crear workflow CI con build backend, lint frontend y build frontend.
+- Mantener workflow CI con tests backend, build backend, lint frontend y build frontend.
 
 ## Cambios propuestos para AGENTS.md
 
@@ -133,10 +135,10 @@ No se han aplicado todavia. Propuesta:
 
 ## Siguiente tarea concreta
 
-Completar el flujo Git de la rama de tests backend y abrir PR contra `main`.
+Completar el flujo Git de la rama de CI y abrir PR contra `main`.
 
 Despues del merge:
 
-1. Crear CI con tests backend y builds.
-2. Ampliar tests backend para equipos, delegaciones y roles.
-3. Valorar tests de integracion con PostgreSQL de test.
+1. Ampliar tests backend para equipos, delegaciones y roles.
+2. Valorar tests de integracion con PostgreSQL de test.
+3. Revisar `.nvmrc` o `engines` para fijar version de Node local.
