@@ -14,6 +14,10 @@ export type RolGuardia = {
   nombre: string
 }
 
+export async function getRolesGuardia(accessToken: string): Promise<RolGuardia[]> {
+  return authorizedGet<RolGuardia[]>('/api/guardias/roles', accessToken)
+}
+
 export type AsignacionGuardia = {
   id: number
   guardia_id: number
@@ -96,6 +100,7 @@ export type CrearGuardiaInput = {
   fecha_inicio: string
   fecha_fin: string
   estado?: string
+  asignaciones?: AsignacionGuardiaPayload[]
 }
 
 export type AsignacionGuardiaPayload = {
@@ -113,8 +118,8 @@ export type ActualizarGuardiaInput = {
 export async function crearGuardia(
   accessToken: string,
   input: CrearGuardiaInput,
-): Promise<Guardia> {
-  return authorizedPost<Guardia>('/api/guardias', accessToken, input)
+): Promise<GuardiaDetalle> {
+  return authorizedPost<GuardiaDetalle>('/api/guardias', accessToken, input)
 }
 
 export async function actualizarGuardia(
