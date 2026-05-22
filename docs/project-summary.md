@@ -214,7 +214,7 @@ Relaciones importantes:
 - La prevencion de solapes de guardia vive principalmente en codigo de aplicacion.
 - Algunas operaciones de permisos y guardias necesitan mas cobertura de edge cases.
 - `npm ci` reporta vulnerabilidades existentes en dependencias.
-- Vite recomienda Node `20.19+`; el entorno usado tenia Node `20.11.1`, aunque el build compilo.
+- Vite recomienda Node `20.19+`; el proyecto fija `.nvmrc` en `22.12.0`.
 - `packages/*` esta declarado en workspaces, pero no hay paquetes compartidos.
 
 ## Riesgos de seguridad
@@ -370,7 +370,7 @@ Resultado: correcto.
 
 Avisos conocidos:
 
-- Vite avisa que Node `20.11.1` esta por debajo de `20.19+`, pero el build termina.
+- Si el entorno local usa Node por debajo de `20.19`, Vite avisa aunque el build pueda terminar; usar `nvm use`.
 - `baseline-browser-mapping` y Browserslist reportan datos antiguos.
 - `npm ci` reporto vulnerabilidades existentes en dependencias.
 
