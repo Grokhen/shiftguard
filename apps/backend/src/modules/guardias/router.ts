@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
@@ -92,6 +93,15 @@ const actualizarGuardiaSchema = z
       message: 'fecha_fin > fecha_inicio',
     },
   )
+
+const usuarioSeguroSelect = {
+  id: true,
+  nombre: true,
+  apellidos: true,
+  email: true,
+  delegacion_id: true,
+  activo: true,
+} as const
 
 router.get('/', async (req, res, next) => {
   try {
@@ -203,7 +213,9 @@ router.get('/:id', async (req, res, next) => {
         Delegacion: true,
         Asignaciones: {
           include: {
-            Usuario: true,
+            Usuario: {
+              select: usuarioSeguroSelect,
+            },
             RolGuardia: true,
           },
         },
@@ -224,12 +236,15 @@ router.get('/:id', async (req, res, next) => {
   }
 })
 
-router.post('/', authRequired, async (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
-    const user = req.user
+    const user = req.user as AuthUser
     if (!user) {
       return res.status(401).json({ error: 'No autenticado' })
     }
+
+    await ensureSupervisorOrAdmin(user)
+
     const dto = crearGuardiaSchema.parse(req.body)
     const ini = new Date(dto.fecha_inicio)
     const fin = new Date(dto.fecha_fin)
@@ -249,6 +264,7 @@ router.post('/', authRequired, async (req, res, next) => {
         fecha_inicio: ini,
         fecha_fin: fin,
         estado: dto.estado ?? 'PLANIFICADA',
+        creado_por: user.sub,
       },
     })
     res.status(201).json(created)
@@ -331,7 +347,7 @@ router.patch('/:id', async (req, res, next) => {
       }
 
       const usuariosOtraDelegacion = usuarios.filter(
-        (u) => u.delegacion_id !== guardia.delegacion_id,
+        (u: { delegacion_id: number }) => u.delegacion_id !== guardia.delegacion_id,
       )
       if (usuariosOtraDelegacion.length > 0) {
         return res.status(400).json({
@@ -351,28 +367,30 @@ router.patch('/:id', async (req, res, next) => {
         })
       }
 
-      await prisma.guardia.update({
-        where: { id: guardiaId },
-        data: {
-          fecha_inicio: nuevaFechaInicio,
-          fecha_fin: nuevaFechaFin,
-          estado: dto.estado ?? guardia.estado,
-        },
-      })
-
-      await prisma.asignacionGuardia.deleteMany({
-        where: { guardia_id: guardiaId },
-      })
-
-      if (asignaciones.length > 0) {
-        await prisma.asignacionGuardia.createMany({
-          data: asignaciones.map((a) => ({
-            guardia_id: guardiaId,
-            usuario_id: a.usuario_id,
-            rol_guardia_id: a.rol_guardia_id,
-          })),
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.guardia.update({
+          where: { id: guardiaId },
+          data: {
+            fecha_inicio: nuevaFechaInicio,
+            fecha_fin: nuevaFechaFin,
+            estado: dto.estado ?? guardia.estado,
+          },
         })
-      }
+
+        await tx.asignacionGuardia.deleteMany({
+          where: { guardia_id: guardiaId },
+        })
+
+        if (asignaciones.length > 0) {
+          await tx.asignacionGuardia.createMany({
+            data: asignaciones.map((a) => ({
+              guardia_id: guardiaId,
+              usuario_id: a.usuario_id,
+              rol_guardia_id: a.rol_guardia_id,
+            })),
+          })
+        }
+      })
     } else {
       await prisma.guardia.update({
         where: { id: guardiaId },
@@ -390,7 +408,9 @@ router.patch('/:id', async (req, res, next) => {
         Delegacion: true,
         Asignaciones: {
           include: {
-            Usuario: true,
+            Usuario: {
+              select: usuarioSeguroSelect,
+            },
             RolGuardia: true,
           },
         },
@@ -465,7 +485,9 @@ router.post('/:id/asignaciones', async (req, res, next) => {
         rol_guardia_id: dto.rol_guardia_id,
       },
       include: {
-        Usuario: true,
+        Usuario: {
+          select: usuarioSeguroSelect,
+        },
         RolGuardia: true,
       },
     })

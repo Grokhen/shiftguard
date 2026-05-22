@@ -69,6 +69,15 @@ const listarPermisosEquipoQuerySchema = z.object({
   anio: z.coerce.number().int().optional(),
 })
 
+const usuarioSeguroSelect = {
+  id: true,
+  nombre: true,
+  apellidos: true,
+  email: true,
+  delegacion_id: true,
+  activo: true,
+} as const
+
 router.post('/', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -111,7 +120,9 @@ router.get('/:id', async (req, res, next) => {
       include: {
         Miembros: {
           include: {
-            Usuario: true,
+            Usuario: {
+              select: usuarioSeguroSelect,
+            },
           },
         },
       },
@@ -282,7 +293,7 @@ router.get('/:id/permisos', async (req, res, next) => {
       select: { usuario_id: true },
     })
 
-    const idsUsuarios = miembros.map((m) => m.usuario_id)
+    const idsUsuarios = miembros.map((m: { usuario_id: number }) => m.usuario_id)
     if (idsUsuarios.length === 0) {
       return res.json([])
     }
@@ -300,7 +311,9 @@ router.get('/:id/permisos', async (req, res, next) => {
     const permisos = await prisma.permiso.findMany({
       where,
       include: {
-        Usuario: true,
+        Usuario: {
+          select: usuarioSeguroSelect,
+        },
         Tipo: true,
         Estado: true,
       },

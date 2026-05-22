@@ -5,6 +5,7 @@ export type LoginResponse = {
 }
 
 type ApiError = {
+  error?: string
   message?: string
 }
 
@@ -22,9 +23,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
     try {
       const data: ApiError = await res.json()
-      if (data?.message) {
-        errorMessage = data.message
-      }
+      errorMessage = data?.error ?? data?.message ?? errorMessage
     } catch {
       // si no se puede parsear el JSON, devuelve mensaje genérico
     }

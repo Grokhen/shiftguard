@@ -15,8 +15,23 @@ const loginSchema = z.object({
 router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body)
-    const user = await prisma.usuario.findUnique({ where: { email } })
-    if (!user || !user.password_hash)
+    const user = await prisma.usuario.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        password_hash: true,
+        activo: true,
+        bloqueado_en: true,
+        rol_id: true,
+        delegacion_id: true,
+        Rol: {
+          select: {
+            codigo: true,
+          },
+        },
+      },
+    })
+    if (!user || !user.password_hash || !user.activo || user.bloqueado_en)
       return res.status(401).json({ error: 'Credenciales inválidas' })
 
     const ok = await argon2.verify(user.password_hash, password + ENV.AUTH_PEPPER)
@@ -24,7 +39,7 @@ router.post('/login', async (req, res, next) => {
 
     await prisma.usuario.update({ where: { id: user.id }, data: { ultimo_login: new Date() } })
     const token = jwt.sign(
-      { sub: user.id, role: user.rol_id, deleg: user.delegacion_id },
+      { sub: user.id, role: user.rol_id, roleCode: user.Rol.codigo, deleg: user.delegacion_id },
       ENV.JWT_SECRET,
       { expiresIn: '15m' },
     )

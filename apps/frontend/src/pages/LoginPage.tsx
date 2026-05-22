@@ -15,11 +15,11 @@ export function LoginPage() {
   useEffect(() => {
     if (!isAuthenticated || !user) return
 
-    if (user.role === ROLE_TECNICO) {
+    if (user.roleCode === ROLE_TECNICO) {
       navigate('/tecnico', { replace: true })
-    } else if (user.role === ROLE_SUPERVISOR) {
+    } else if (user.roleCode === ROLE_SUPERVISOR) {
       navigate('/supervisor', { replace: true })
-    } else if (user.role === ROLE_ADMIN) {
+    } else if (user.roleCode === ROLE_ADMIN) {
       navigate('/admin', { replace: true })
     }
   }, [isAuthenticated, user, navigate])
