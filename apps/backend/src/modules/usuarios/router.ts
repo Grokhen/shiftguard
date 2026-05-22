@@ -4,30 +4,11 @@ import argon2 from 'argon2'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
 import { ENV } from '../../config/env'
+import { ensureAdmin, type AuthUser } from '../../utils/authz'
 
 const router = Router()
 
 router.use(authRequired)
-
-type AuthUser = {
-  sub: number
-  role: number
-  deleg: number
-}
-
-async function getUserRoleCodigo(user: AuthUser): Promise<string | null> {
-  const rol = await prisma.rolUsuario.findUnique({ where: { id: user.role } })
-  return rol?.codigo ?? null
-}
-
-async function ensureAdmin(user: AuthUser) {
-  const codigo = await getUserRoleCodigo(user)
-  if (codigo !== 'ADMIN') {
-    const err = new Error('Acción reservada a administradores')
-    ;(err as any).statusCode = 403
-    throw err
-  }
-}
 
 const crearUsuarioSchema = z.object({
   nombre: z.string().min(1).max(100),

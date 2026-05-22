@@ -3,39 +3,14 @@ import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
+import {
+  ensureSupervisorOrAdmin,
+  getUserRoleCodigo,
+  isAdminCodigo,
+  type AuthUser,
+} from '../../utils/authz'
 
 const router = Router()
-
-type AuthUser = {
-  sub: number
-  role: number
-  deleg: number
-}
-
-async function getUserRoleCodigo(user: AuthUser): Promise<string | null> {
-  const rol = await prisma.rolUsuario.findUnique({
-    where: { id: user.role },
-  })
-  return rol?.codigo ?? null
-}
-
-async function ensureSupervisorOrAdmin(user: AuthUser) {
-  const codigo = await getUserRoleCodigo(user)
-  if (!codigo) {
-    const err = new Error('Rol de usuario no encontrado')
-    ;(err as any).statusCode = 500
-    throw err
-  }
-  if (!['SUPERVISOR', 'ADMIN'].includes(codigo)) {
-    const err = new Error('No tienes permisos para realizar esta acción')
-    ;(err as any).statusCode = 403
-    throw err
-  }
-}
-
-function isAdminCodigo(codigo: string | null) {
-  return codigo === 'ADMIN'
-}
 
 router.use(authRequired)
 

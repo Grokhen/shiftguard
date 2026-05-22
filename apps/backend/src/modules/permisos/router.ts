@@ -2,16 +2,16 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
+import {
+  ensureSupervisorOrAdmin,
+  getUserRoleCodigo,
+  isAdminCodigo,
+  type AuthUser,
+} from '../../utils/authz'
 
 const router = Router()
 
 router.use(authRequired)
-
-type AuthUser = {
-  sub: number
-  role: number
-  deleg: number
-}
 
 const iso = z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha inválida')
 
@@ -37,32 +37,6 @@ const decidirPermisoSchema = z.object({
   estado_id: z.number().int().positive(),
   observaciones: z.string().max(500).optional(),
 })
-
-async function getUserRoleCodigo(user: AuthUser): Promise<string | null> {
-  const rol = await prisma.rolUsuario.findUnique({
-    where: { id: user.role },
-  })
-  return rol?.codigo ?? null
-}
-
-async function ensureSupervisorOrAdmin(user: AuthUser) {
-  const codigo = await getUserRoleCodigo(user)
-  if (!codigo) {
-    const err = new Error('Rol de usuario no encontrado')
-    ;(err as any).statusCode = 500
-    throw err
-  }
-
-  if (!['SUPERVISOR', 'ADMIN'].includes(codigo)) {
-    const err = new Error('No tienes permisos para realizar esta acción')
-    ;(err as any).statusCode = 403
-    throw err
-  }
-}
-
-function isAdminCodigo(codigo: string | null) {
-  return codigo === 'ADMIN'
-}
 
 router.get('/tipos', async (_req, res, next) => {
   try {
