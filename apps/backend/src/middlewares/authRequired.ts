@@ -5,6 +5,7 @@ import { ENV } from '../config/env'
 export interface AuthPayload {
   sub: number
   role: number
+  roleCode: string
   deleg: number
 }
 
@@ -12,7 +13,12 @@ function isAuthPayload(payload: unknown): payload is AuthPayload {
   if (!payload || typeof payload !== 'object') return false
 
   const p = payload as any
-  return typeof p.sub === 'number' && typeof p.role === 'number' && typeof p.deleg === 'number'
+  return (
+    typeof p.sub === 'number' &&
+    typeof p.role === 'number' &&
+    typeof p.roleCode === 'string' &&
+    typeof p.deleg === 'number'
+  )
 }
 
 export function authRequired(req: Request, res: Response, next: NextFunction) {

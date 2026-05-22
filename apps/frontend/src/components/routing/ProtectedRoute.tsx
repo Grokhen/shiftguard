@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import type { RoleCode } from '../../constants/roles'
 
 interface ProtectedRouteProps {
   children: ReactNode
-  allowedRoles?: number[]
+  allowedRoles?: RoleCode[]
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
@@ -25,7 +26,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/" replace state={{ from: location }} />
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && !allowedRoles.includes(user.roleCode)) {
     return <Navigate to="/" replace />
   }
 

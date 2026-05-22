@@ -6,11 +6,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:backend": "npm --workspace=@app/backend run dev",
-    "build:backend": "npm --workspace=@app/backend run build",
-    "start:backend": "npm --workspace=@app/backend run start",
+    "dev:backend": "npm run dev --workspace backend",
+    "build:backend": "npm run build --workspace backend",
+    "start:backend": "npm run start --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
-    "build:frontend": "npm run build --workspace frontend"
+    "build:frontend": "npm run build --workspace frontend",
+    "lint:frontend": "npm run lint --workspace frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "lint": "npm run lint:frontend"
   },
   "devDependencies": {
     "@types/react-router-dom": "^5.3.3",

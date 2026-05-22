@@ -1,14 +1,17 @@
 import { API_BASE_URL } from '../config'
 
+type ApiError = {
+  error?: string
+  message?: string
+}
+
 async function handleResponse<T>(res: Response, path: string): Promise<T> {
   if (!res.ok) {
     let message = `Error ${res.status} al llamar a ${path}`
 
     try {
-      const data = await res.json()
-      if (data?.message) {
-        message = data.message
-      }
+      const data = (await res.json()) as ApiError
+      message = data?.error ?? data?.message ?? message
     } catch {
       // mensaje de error genérico
     }
@@ -68,12 +71,8 @@ export async function authorizedDelete(path: string, token: string): Promise<voi
     let message = `Error ${res.status} al llamar a ${path}`
 
     try {
-      const data = await res.json()
-      if (data?.message) {
-        message = data.message
-      } else if (data?.error) {
-        message = data.error
-      }
+      const data = (await res.json()) as ApiError
+      message = data?.error ?? data?.message ?? message
     } catch {
       // mensaje de error genérico
     }
