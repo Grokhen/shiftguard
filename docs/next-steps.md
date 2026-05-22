@@ -40,10 +40,16 @@ Ya cubierto en la base inicial:
   - tecnico solicita permiso;
   - supervisor decide permiso de su delegacion;
   - supervisor no decide permiso de otra delegacion.
+- Tests para rutas administrativas y equipos:
+  - admin requerido en delegaciones;
+  - admin requerido en roles de usuario;
+  - listado de equipos aislado por delegacion para supervisores;
+  - filtro global de equipos para admin;
+  - rechazo de lectura y miembros de equipos de otra delegacion.
 
 Tareas pendientes:
 
-- Cubrir delegaciones, roles de usuario y equipos con mas profundidad.
+- Cubrir creacion/edicion de delegaciones, roles de usuario y equipos con mas profundidad.
 - Anadir edge cases de permisos no pendientes, estados invalidos y tipos invalidos.
 - Decidir si se anaden tests de integracion con PostgreSQL real para flujos criticos.
 - Mantener CI como puerta de entrada para tests y builds en cada PR.
@@ -139,6 +145,6 @@ Completar el flujo Git de la rama de CI y abrir PR contra `main`.
 
 Despues del merge:
 
-1. Ampliar tests backend para equipos, delegaciones y roles.
+1. Ampliar tests backend para creacion/edicion de equipos, delegaciones y roles.
 2. Valorar tests de integracion con PostgreSQL de test.
 3. Revisar `.nvmrc` o `engines` para fijar version de Node local.

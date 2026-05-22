@@ -629,3 +629,176 @@ describe('permisos', () => {
     expect(prismaMock.permiso.update).not.toHaveBeenCalled()
   })
 })
+
+describe('admin catalog routes', () => {
+  it('requires admin role to list delegaciones', async () => {
+    const res = await request(app)
+      .get('/api/delegaciones')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor)}`)
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'Acción reservada a administradores' })
+    expect(prismaMock.delegacion.findMany).not.toHaveBeenCalled()
+  })
+
+  it('allows admins to list delegaciones', async () => {
+    prismaMock.delegacion.findMany.mockResolvedValue([
+      {
+        id: 1,
+        nombre: 'Madrid',
+        codigo: 'MAD',
+        activo: true,
+      },
+    ])
+
+    const res = await request(app)
+      .get('/api/delegaciones')
+      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .expect(200)
+
+    expect(res.body).toHaveLength(1)
+    expect(prismaMock.delegacion.findMany).toHaveBeenCalledWith({
+      orderBy: { nombre: 'asc' },
+    })
+  })
+
+  it('requires admin role to list user roles', async () => {
+    const res = await request(app)
+      .get('/api/rolesUsuario')
+      .set('Authorization', `Bearer ${signToken(roles.tecnico)}`)
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'Acción reservada a administradores' })
+    expect(prismaMock.rolUsuario.findMany).not.toHaveBeenCalled()
+  })
+
+  it('allows admins to list user roles', async () => {
+    prismaMock.rolUsuario.findMany.mockResolvedValue(Object.values(roles))
+
+    const res = await request(app)
+      .get('/api/rolesUsuario')
+      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .expect(200)
+
+    expect(res.body).toHaveLength(3)
+    expect(prismaMock.rolUsuario.findMany).toHaveBeenCalledWith({
+      orderBy: { nombre: 'asc' },
+    })
+  })
+})
+
+describe('equipos', () => {
+  it('lists only supervisor delegation teams even if another delegation is requested', async () => {
+    prismaMock.equipo.findMany.mockResolvedValue([
+      {
+        id: 1,
+        nombre_equipo: 'N1',
+        delegacion_id: 1,
+      },
+    ])
+
+    const res = await request(app)
+      .get('/api/equipos?delegacion_id=2')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .expect(200)
+
+    expect(res.body).toHaveLength(1)
+    expect(prismaMock.equipo.findMany).toHaveBeenCalledWith({
+      where: { delegacion_id: 1 },
+      orderBy: { nombre_equipo: 'asc' },
+    })
+  })
+
+  it('allows admins to filter teams by delegation', async () => {
+    prismaMock.equipo.findMany.mockResolvedValue([
+      {
+        id: 2,
+        nombre_equipo: 'N2',
+        delegacion_id: 2,
+      },
+    ])
+
+    const res = await request(app)
+      .get('/api/equipos?delegacion_id=2')
+      .set('Authorization', `Bearer ${signToken(roles.admin, 1, 30)}`)
+      .expect(200)
+
+    expect(res.body).toHaveLength(1)
+    expect(prismaMock.equipo.findMany).toHaveBeenCalledWith({
+      where: { delegacion_id: 2 },
+      orderBy: { nombre_equipo: 'asc' },
+    })
+  })
+
+  it('rejects supervisors reading teams from another delegation', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 2,
+      nombre_equipo: 'N2',
+      delegacion_id: 2,
+      Miembros: [],
+    })
+
+    const res = await request(app)
+      .get('/api/equipos/2')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'No puedes consultar equipos de otra delegación' })
+  })
+
+  it('allows supervisors to add members to teams in their delegation', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 1,
+      nombre_equipo: 'N1',
+      delegacion_id: 1,
+    })
+    prismaMock.usuario.findUnique.mockResolvedValue({
+      id: 10,
+      delegacion_id: 1,
+    })
+    prismaMock.miembroEquipo.create.mockResolvedValue({
+      equipo_id: 1,
+      usuario_id: 10,
+    })
+
+    const res = await request(app)
+      .post('/api/equipos/1/miembros')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({ usuario_id: 10 })
+      .expect(201)
+
+    expect(res.body).toEqual({
+      equipo_id: 1,
+      usuario_id: 10,
+    })
+    expect(prismaMock.miembroEquipo.create).toHaveBeenCalledWith({
+      data: {
+        equipo_id: 1,
+        usuario_id: 10,
+      },
+    })
+  })
+
+  it('rejects adding users from another delegation to a team', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 1,
+      nombre_equipo: 'N1',
+      delegacion_id: 1,
+    })
+    prismaMock.usuario.findUnique.mockResolvedValue({
+      id: 10,
+      delegacion_id: 2,
+    })
+
+    const res = await request(app)
+      .post('/api/equipos/1/miembros')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({ usuario_id: 10 })
+      .expect(400)
+
+    expect(res.body).toEqual({
+      error: 'Usuario y equipo deben pertenecer a la misma delegación',
+    })
+    expect(prismaMock.miembroEquipo.create).not.toHaveBeenCalled()
+  })
+})
