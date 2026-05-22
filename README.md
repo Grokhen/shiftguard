@@ -54,7 +54,8 @@ Variables requeridas según [`ENV`](apps/backend/src/config/env.ts):
 | `DATABASE_URL` | Cadena de conexión de PostgreSQL. |
 | `JWT_SECRET` | Clave para firmar tokens. |
 | `AUTH_PEPPER` | Pepper usado junto a Argon2. |
-| `PORT` | Puerto HTTP (por defecto 3001). |
+| `PORT` | (Opcional) Puerto HTTP (por defecto 3001). |
+| `CORS_ORIGIN` | (Opcional) Origen permitido por CORS. Si no se define, usa la configuración abierta por defecto de `cors`. |
 | `SEED_ADMIN_PASSWORD` | (Opcional) Contraseña para el seed inicial, usada en [prisma/seed.ts](apps/backend/src/prisma/seed.ts). |
 
 ### Frontend (`apps/frontend/.env.local`)
