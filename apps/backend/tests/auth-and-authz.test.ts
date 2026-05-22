@@ -802,3 +802,216 @@ describe('equipos', () => {
     expect(prismaMock.miembroEquipo.create).not.toHaveBeenCalled()
   })
 })
+
+describe('admin catalog mutations', () => {
+  it('allows admins to create delegaciones', async () => {
+    prismaMock.delegacion.create.mockResolvedValue({
+      id: 2,
+      nombre: 'Barcelona',
+      codigo: 'BCN',
+      pais_code: 'ES',
+      region_code: 'CAT',
+      activo: true,
+    })
+
+    const res = await request(app)
+      .post('/api/delegaciones')
+      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .send({
+        nombre: 'Barcelona',
+        codigo: 'BCN',
+        pais_code: 'ES',
+        region_code: 'CAT',
+      })
+      .expect(201)
+
+    expect(res.body).toMatchObject({
+      id: 2,
+      nombre: 'Barcelona',
+      codigo: 'BCN',
+      activo: true,
+    })
+    expect(prismaMock.delegacion.create).toHaveBeenCalledWith({
+      data: {
+        nombre: 'Barcelona',
+        codigo: 'BCN',
+        pais_code: 'ES',
+        region_code: 'CAT',
+        activo: true,
+      },
+    })
+  })
+
+  it('requires admin role to update delegaciones', async () => {
+    const res = await request(app)
+      .patch('/api/delegaciones/2')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor)}`)
+      .send({ activo: false })
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'Acción reservada a administradores' })
+    expect(prismaMock.delegacion.update).not.toHaveBeenCalled()
+  })
+
+  it('allows admins to update user roles', async () => {
+    prismaMock.rolUsuario.update.mockResolvedValue({
+      id: roles.supervisor.id,
+      codigo: 'SUPERVISOR',
+      nombre: 'Supervisor actualizado',
+    })
+
+    const res = await request(app)
+      .patch(`/api/rolesUsuario/${roles.supervisor.id}`)
+      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .send({ nombre: 'Supervisor actualizado' })
+      .expect(200)
+
+    expect(res.body).toEqual({
+      id: roles.supervisor.id,
+      codigo: 'SUPERVISOR',
+      nombre: 'Supervisor actualizado',
+    })
+    expect(prismaMock.rolUsuario.update).toHaveBeenCalledWith({
+      where: { id: roles.supervisor.id },
+      data: { nombre: 'Supervisor actualizado' },
+    })
+  })
+
+  it('allows admins to create equipos for existing delegaciones', async () => {
+    prismaMock.delegacion.findUnique.mockResolvedValue({
+      id: 1,
+      nombre: 'Madrid',
+    })
+    prismaMock.equipo.create.mockResolvedValue({
+      id: 1,
+      nombre_equipo: 'Nivel 1',
+      delegacion_id: 1,
+    })
+
+    const res = await request(app)
+      .post('/api/equipos')
+      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .send({
+        nombre_equipo: 'Nivel 1',
+        delegacion_id: 1,
+      })
+      .expect(201)
+
+    expect(res.body).toEqual({
+      id: 1,
+      nombre_equipo: 'Nivel 1',
+      delegacion_id: 1,
+    })
+    expect(prismaMock.equipo.create).toHaveBeenCalledWith({
+      data: {
+        nombre_equipo: 'Nivel 1',
+        delegacion_id: 1,
+      },
+    })
+  })
+
+  it('rejects creating equipos for unknown delegaciones', async () => {
+    prismaMock.delegacion.findUnique.mockResolvedValue(null)
+
+    const res = await request(app)
+      .post('/api/equipos')
+      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .send({
+        nombre_equipo: 'Nivel 1',
+        delegacion_id: 99,
+      })
+      .expect(400)
+
+    expect(res.body).toEqual({ error: 'Delegación no encontrada: 99' })
+    expect(prismaMock.equipo.create).not.toHaveBeenCalled()
+  })
+
+  it('requires admin role to update equipos', async () => {
+    const res = await request(app)
+      .patch('/api/equipos/1')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor)}`)
+      .send({ nombre_equipo: 'Nivel 2' })
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'Acción reservada a administradores' })
+    expect(prismaMock.equipo.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('permisos edge cases', () => {
+  it('rejects deciding permisos that are no longer pending', async () => {
+    prismaMock.permiso.findUnique.mockResolvedValue({
+      id: 50,
+      Estado: {
+        codigo: 'APROBADO',
+      },
+      Usuario: {
+        delegacion_id: 1,
+      },
+    })
+
+    const res = await request(app)
+      .patch('/api/permisos/50/decidir')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({ estado_id: 2 })
+      .expect(400)
+
+    expect(res.body).toEqual({
+      error: 'No se puede cambiar un permiso en estado APROBADO',
+    })
+    expect(prismaMock.estadoPermiso.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.permiso.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects putting a permiso back into pending state', async () => {
+    prismaMock.permiso.findUnique.mockResolvedValue({
+      id: 50,
+      Estado: {
+        codigo: 'PENDIENTE',
+      },
+      Usuario: {
+        delegacion_id: 1,
+      },
+    })
+    prismaMock.estadoPermiso.findUnique.mockResolvedValue({
+      id: 1,
+      codigo: 'PENDIENTE',
+      nombre: 'Pendiente',
+    })
+
+    const res = await request(app)
+      .patch('/api/permisos/50/decidir')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({ estado_id: 1 })
+      .expect(400)
+
+    expect(res.body).toEqual({
+      error: 'No se puede volver a poner el permiso en estado PENDIENTE',
+    })
+    expect(prismaMock.permiso.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects unknown permiso decision states', async () => {
+    prismaMock.permiso.findUnique.mockResolvedValue({
+      id: 50,
+      Estado: {
+        codigo: 'PENDIENTE',
+      },
+      Usuario: {
+        delegacion_id: 1,
+      },
+    })
+    prismaMock.estadoPermiso.findUnique.mockResolvedValue(null)
+
+    const res = await request(app)
+      .patch('/api/permisos/50/decidir')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({ estado_id: 99 })
+      .expect(400)
+
+    expect(res.body).toEqual({
+      error: 'Estado de permiso no válido: 99',
+    })
+    expect(prismaMock.permiso.update).not.toHaveBeenCalled()
+  })
+})
