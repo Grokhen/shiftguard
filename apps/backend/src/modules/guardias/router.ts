@@ -3,49 +3,30 @@ import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
+import {
+  ensureSupervisorOrAdmin,
+  getUserRoleCodigo,
+  isAdminCodigo,
+  type AuthUser,
+} from '../../utils/authz'
 
 const router = Router()
-
-type AuthUser = {
-  sub: number
-  role: number
-  deleg: number
-}
-
-async function getUserRoleCodigo(user: AuthUser): Promise<string | null> {
-  const rol = await prisma.rolUsuario.findUnique({
-    where: { id: user.role },
-  })
-  return rol?.codigo ?? null
-}
-
-async function ensureSupervisorOrAdmin(user: AuthUser) {
-  const codigo = await getUserRoleCodigo(user)
-  if (!codigo) {
-    const err = new Error('Rol de usuario no encontrado')
-    ;(err as any).statusCode = 500
-    throw err
-  }
-  if (!['SUPERVISOR', 'ADMIN'].includes(codigo)) {
-    const err = new Error('No tienes permisos para realizar esta acción')
-    ;(err as any).statusCode = 403
-    throw err
-  }
-}
-
-function isAdminCodigo(codigo: string | null) {
-  return codigo === 'ADMIN'
-}
 
 router.use(authRequired)
 
 const iso = z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha inválida')
+
+const asignacionGuardiaInputSchema = z.object({
+  usuario_id: z.number().int().positive(),
+  rol_guardia_id: z.number().int().positive(),
+})
 
 const crearGuardiaSchema = z
   .object({
     fecha_inicio: iso,
     fecha_fin: iso,
     estado: z.string().max(20).optional(),
+    asignaciones: z.array(asignacionGuardiaInputSchema).optional(),
   })
   .refine((d) => new Date(d.fecha_fin) > new Date(d.fecha_inicio), {
     path: ['fecha_fin'],
@@ -62,24 +43,14 @@ const listarMisGuardiasQuerySchema = z.object({
   hasta: iso.optional(),
 })
 
-const asignacionGuardiaSchema = z.object({
-  usuario_id: z.number().int().positive(),
-  rol_guardia_id: z.number().int().positive(),
-})
+const asignacionGuardiaSchema = asignacionGuardiaInputSchema
 
 const actualizarGuardiaSchema = z
   .object({
     fecha_inicio: iso.optional(),
     fecha_fin: iso.optional(),
     estado: z.string().max(20).optional(),
-    asignaciones: z
-      .array(
-        z.object({
-          usuario_id: z.number().int().positive(),
-          rol_guardia_id: z.number().int().positive(),
-        }),
-      )
-      .optional(),
+    asignaciones: z.array(asignacionGuardiaInputSchema).optional(),
   })
   .refine(
     (d) => {
@@ -102,6 +73,65 @@ const usuarioSeguroSelect = {
   delegacion_id: true,
   activo: true,
 } as const
+
+type AsignacionGuardiaInput = z.infer<typeof asignacionGuardiaInputSchema>
+
+async function validarAsignacionesGuardia(
+  delegacionId: number,
+  asignaciones: AsignacionGuardiaInput[],
+) {
+  const usuarioIds = asignaciones.map((a) => a.usuario_id)
+  const rolGuardiaIds = asignaciones.map((a) => a.rol_guardia_id)
+
+  if (new Set(usuarioIds).size !== usuarioIds.length) {
+    const err = new Error('No se puede repetir un usuario en la misma guardia')
+    ;(err as any).statusCode = 400
+    throw err
+  }
+
+  if (new Set(rolGuardiaIds).size !== rolGuardiaIds.length) {
+    const err = new Error('No se puede repetir un rol de guardia en la misma guardia')
+    ;(err as any).statusCode = 400
+    throw err
+  }
+
+  if (asignaciones.length === 0) {
+    return
+  }
+
+  const usuarios = await prisma.usuario.findMany({
+    where: { id: { in: usuarioIds } },
+    select: { id: true, delegacion_id: true },
+  })
+
+  if (usuarios.length !== usuarioIds.length) {
+    const err = new Error('Alguno de los usuarios no existe')
+    ;(err as any).statusCode = 400
+    throw err
+  }
+
+  const usuariosOtraDelegacion = usuarios.filter(
+    (u: { delegacion_id: number }) => u.delegacion_id !== delegacionId,
+  )
+  if (usuariosOtraDelegacion.length > 0) {
+    const err = new Error(
+      'Todos los usuarios asignados deben pertenecer a la misma delegación que la guardia',
+    )
+    ;(err as any).statusCode = 400
+    throw err
+  }
+
+  const roles = await prisma.rolGuardia.findMany({
+    where: { id: { in: rolGuardiaIds } },
+    select: { id: true },
+  })
+
+  if (roles.length !== rolGuardiaIds.length) {
+    const err = new Error('Alguno de los roles de guardia no existe')
+    ;(err as any).statusCode = 400
+    throw err
+  }
+}
 
 router.get('/', async (req, res, next) => {
   try {
@@ -195,6 +225,18 @@ router.get('/mias', async (req, res, next) => {
   }
 })
 
+router.get('/roles', async (_req, res, next) => {
+  try {
+    const roles = await prisma.rolGuardia.findMany({
+      orderBy: { nombre: 'asc' },
+    })
+
+    res.json(roles)
+  } catch (e) {
+    next(e)
+  }
+})
+
 router.get('/:id', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
@@ -248,6 +290,7 @@ router.post('/', async (req, res, next) => {
     const dto = crearGuardiaSchema.parse(req.body)
     const ini = new Date(dto.fecha_inicio)
     const fin = new Date(dto.fecha_fin)
+    const asignaciones = dto.asignaciones ?? []
 
     const overlap = await prisma.guardia.findFirst({
       where: {
@@ -258,16 +301,48 @@ router.post('/', async (req, res, next) => {
     if (overlap)
       return res.status(400).json({ error: 'Ya existe una guardia solapada en esta delegación' })
 
-    const created = await prisma.guardia.create({
-      data: {
-        delegacion_id: user.deleg,
-        fecha_inicio: ini,
-        fecha_fin: fin,
-        estado: dto.estado ?? 'PLANIFICADA',
-        creado_por: user.sub,
+    await validarAsignacionesGuardia(user.deleg, asignaciones)
+
+    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const guardia = await tx.guardia.create({
+        data: {
+          delegacion_id: user.deleg,
+          fecha_inicio: ini,
+          fecha_fin: fin,
+          estado: dto.estado ?? 'PLANIFICADA',
+          creado_por: user.sub,
+        },
+      })
+
+      if (asignaciones.length > 0) {
+        await tx.asignacionGuardia.createMany({
+          data: asignaciones.map((a) => ({
+            guardia_id: guardia.id,
+            usuario_id: a.usuario_id,
+            rol_guardia_id: a.rol_guardia_id,
+          })),
+        })
+      }
+
+      return guardia
+    })
+
+    const guardiaCreada = await prisma.guardia.findUnique({
+      where: { id: created.id },
+      include: {
+        Delegacion: true,
+        Asignaciones: {
+          include: {
+            Usuario: {
+              select: usuarioSeguroSelect,
+            },
+            RolGuardia: true,
+          },
+        },
       },
     })
-    res.status(201).json(created)
+
+    res.status(201).json(guardiaCreada)
   } catch (e) {
     next(e)
   }
@@ -320,52 +395,7 @@ router.patch('/:id', async (req, res, next) => {
     if (dto.asignaciones) {
       const asignaciones = dto.asignaciones
 
-      const usuarioIds = asignaciones.map((a) => a.usuario_id)
-      const rolGuardiaIds = asignaciones.map((a) => a.rol_guardia_id)
-
-      if (new Set(usuarioIds).size !== usuarioIds.length) {
-        return res.status(400).json({
-          error: 'No se puede repetir un usuario en la misma guardia',
-        })
-      }
-
-      if (new Set(rolGuardiaIds).size !== rolGuardiaIds.length) {
-        return res.status(400).json({
-          error: 'No se puede repetir un rol de guardia en la misma guardia',
-        })
-      }
-
-      const usuarios = await prisma.usuario.findMany({
-        where: { id: { in: usuarioIds } },
-        select: { id: true, delegacion_id: true },
-      })
-
-      if (usuarios.length !== usuarioIds.length) {
-        return res.status(400).json({
-          error: 'Alguno de los usuarios no existe',
-        })
-      }
-
-      const usuariosOtraDelegacion = usuarios.filter(
-        (u: { delegacion_id: number }) => u.delegacion_id !== guardia.delegacion_id,
-      )
-      if (usuariosOtraDelegacion.length > 0) {
-        return res.status(400).json({
-          error:
-            'Todos los usuarios asignados deben pertenecer a la misma delegación que la guardia',
-        })
-      }
-
-      const roles = await prisma.rolGuardia.findMany({
-        where: { id: { in: rolGuardiaIds } },
-        select: { id: true },
-      })
-
-      if (roles.length !== rolGuardiaIds.length) {
-        return res.status(400).json({
-          error: 'Alguno de los roles de guardia no existe',
-        })
-      }
+      await validarAsignacionesGuardia(guardia.delegacion_id, asignaciones)
 
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.guardia.update({

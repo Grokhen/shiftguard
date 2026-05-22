@@ -2,30 +2,11 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
+import { ensureAdmin, type AuthUser } from '../../utils/authz'
 
 const router = Router()
 
 router.use(authRequired)
-
-type AuthUser = {
-  sub: number
-  role: number
-  deleg: number
-}
-
-async function getUserRoleCodigo(user: AuthUser): Promise<string | null> {
-  const rol = await prisma.rolUsuario.findUnique({ where: { id: user.role } })
-  return rol?.codigo ?? null
-}
-
-async function ensureAdmin(user: AuthUser) {
-  const codigo = await getUserRoleCodigo(user)
-  if (codigo !== 'ADMIN') {
-    const err = new Error('Acción reservada a administradores')
-    ;(err as any).statusCode = 403
-    throw err
-  }
-}
 
 const crearDelegacionSchema = z.object({
   nombre: z.string().min(1).max(120),

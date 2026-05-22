@@ -5,9 +5,10 @@ import {
   getGuardiasDelegacion,
   getGuardiaDetalle,
   crearGuardia,
-  actualizarGuardia,
+  getRolesGuardia,
   type Guardia,
   type GuardiaDetalle,
+  type RolGuardia,
 } from '../services/guardiasService'
 import {
   getEquipos,
@@ -22,9 +23,6 @@ import {
   type PermisoEquipo,
 } from '../services/permisosService'
 import { formatDateLong, formatTime } from '../utils/date'
-
-const ROL_GUARDIA_PRINCIPAL_ID = 1
-const ROL_GUARDIA_SECUNDARIO_ID = 2
 
 function isNowBetween(startIso: string, endIso: string): boolean {
   const now = new Date()
@@ -70,6 +68,7 @@ export function SupervisorDashboard() {
 
   const [tecnicosDisponibles, setTecnicosDisponibles] = useState<UsuarioBasico[]>([])
   const [errorTecnicos, setErrorTecnicos] = useState<string | null>(null)
+  const [rolesGuardia, setRolesGuardia] = useState<RolGuardia[]>([])
 
   const [guardiaFechaInicio, setGuardiaFechaInicio] = useState('')
   const [guardiaFechaFin, setGuardiaFechaFin] = useState('')
@@ -105,12 +104,16 @@ export function SupervisorDashboard() {
           setEquipoSeleccionadoId(equiposRes[0].id)
         }
 
-        const estados = await getEstadosPermiso(accessToken)
+        const [estados, rolesGuardiaRes] = await Promise.all([
+          getEstadosPermiso(accessToken),
+          getRolesGuardia(accessToken),
+        ])
         const aprobado = estados.find((e) => e.codigo === 'APROBADO')
         const rechazado = estados.find((e) => e.codigo === 'RECHAZADO')
 
         if (aprobado) setEstadoAprobadoId(aprobado.id)
         if (rechazado) setEstadoRechazadoId(rechazado.id)
+        setRolesGuardia(rolesGuardiaRes)
       } catch (err) {
         console.error(err)
         setErrorInit(
@@ -230,6 +233,16 @@ export function SupervisorDashboard() {
     })
   }, [permisosEquipo])
 
+  const rolGuardiaPrincipal = useMemo(
+    () => rolesGuardia.find((rol) => rol.codigo === 'PRINCIPAL') ?? null,
+    [rolesGuardia],
+  )
+
+  const rolGuardiaSecundario = useMemo(
+    () => rolesGuardia.find((rol) => rol.codigo === 'SECUNDARIO') ?? null,
+    [rolesGuardia],
+  )
+
   async function handleDecidirPermiso(permiso: PermisoEquipo, accion: 'APROBAR' | 'RECHAZAR') {
     if (!accessToken) return
     if (!estadoAprobadoId || !estadoRechazadoId) {
@@ -298,6 +311,16 @@ export function SupervisorDashboard() {
       return
     }
 
+    if (!rolGuardiaPrincipal) {
+      setErrorGuardiaForm('No se ha encontrado el rol de guardia PRINCIPAL.')
+      return
+    }
+
+    if (guardiaTecnicoSecId && !rolGuardiaSecundario) {
+      setErrorGuardiaForm('No se ha encontrado el rol de guardia SECUNDARIO.')
+      return
+    }
+
     const ini = new Date(guardiaFechaInicio)
     const fin = new Date(guardiaFechaFin)
 
@@ -309,26 +332,24 @@ export function SupervisorDashboard() {
     setIsSubmittingGuardia(true)
 
     try {
-      const creada = await crearGuardia(accessToken, {
-        fecha_inicio: ini.toISOString(),
-        fecha_fin: fin.toISOString(),
-        estado: guardiaEstado || undefined,
-      })
-
       const asignaciones = [
         {
           usuario_id: Number(guardiaTecnicoId),
-          rol_guardia_id: ROL_GUARDIA_PRINCIPAL_ID,
+          rol_guardia_id: rolGuardiaPrincipal.id,
         },
       ]
 
-      if (guardiaTecnicoSecId) {
+      if (guardiaTecnicoSecId && rolGuardiaSecundario) {
         asignaciones.push({
           usuario_id: Number(guardiaTecnicoSecId),
-          rol_guardia_id: ROL_GUARDIA_SECUNDARIO_ID,
+          rol_guardia_id: rolGuardiaSecundario.id,
         })
       }
-      await actualizarGuardia(accessToken, creada.id, {
+
+      await crearGuardia(accessToken, {
+        fecha_inicio: ini.toISOString(),
+        fecha_fin: fin.toISOString(),
+        estado: guardiaEstado || undefined,
         asignaciones,
       })
 
@@ -400,17 +421,11 @@ export function SupervisorDashboard() {
         ) : (
           <ul className="space-y-2 text-sm">
             {guardiasHoyDetalle.map((g) => {
-              const principal = g.Asignaciones.find(
-                (a) =>
-                  a.RolGuardia.id === ROL_GUARDIA_PRINCIPAL_ID ||
-                  a.RolGuardia.codigo === 'PRINCIPAL',
-              )
+              const principal = g.Asignaciones.find((a) => a.RolGuardia.codigo === 'PRINCIPAL')
 
               const secundarios = g.Asignaciones.filter(
                 (a) =>
-                  a.id !== principal?.id &&
-                  (a.RolGuardia.id === ROL_GUARDIA_SECUNDARIO_ID ||
-                    a.RolGuardia.codigo === 'SECUNDARIO'),
+                  a.id !== principal?.id && a.RolGuardia.codigo === 'SECUNDARIO',
               )
 
               return (
@@ -706,7 +721,7 @@ export function SupervisorDashboard() {
                 value={guardiaTecnicoId}
                 onChange={(e) => setGuardiaTecnicoId(e.target.value)}
                 required
-                disabled={tecnicosDisponibles.length === 0}
+                disabled={tecnicosDisponibles.length === 0 || !rolGuardiaPrincipal}
               >
                 <option value="">
                   {tecnicosDisponibles.length === 0
@@ -729,7 +744,7 @@ export function SupervisorDashboard() {
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
                 value={guardiaTecnicoSecId}
                 onChange={(e) => setGuardiaTecnicoSecId(e.target.value)}
-                disabled={tecnicosDisponibles.length === 0}
+                disabled={tecnicosDisponibles.length === 0 || !rolGuardiaSecundario}
               >
                 <option value="">
                   {tecnicosDisponibles.length === 0
@@ -759,7 +774,7 @@ export function SupervisorDashboard() {
             <div className="sm:col-span-2 flex justify-end">
               <button
                 type="submit"
-                disabled={isSubmittingGuardia}
+                disabled={isSubmittingGuardia || !rolGuardiaPrincipal}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmittingGuardia ? 'Creando…' : 'Crear guardia'}
