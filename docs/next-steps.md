@@ -55,11 +55,18 @@ Ya cubierto en la base inicial:
   - rechazo de decision sobre permisos no pendientes;
   - rechazo de vuelta a estado `PENDIENTE`;
   - rechazo de estados de decision inexistentes.
+- Tests para miembros de equipo y permisos por equipo:
+  - borrado de miembros dentro de la delegacion del supervisor;
+  - rechazo de borrado de miembros en equipos de otra delegacion;
+  - permisos por equipo con y sin miembros;
+  - filtro anual de permisos por equipo;
+  - rechazo de consulta de permisos de equipos de otra delegacion.
+- Tests para solicitudes de permisos:
+  - rechazo de tipos de permiso inexistentes;
+  - rechazo de decision sobre permisos inexistentes.
 
 Tareas pendientes:
 
-- Cubrir borrado de miembros de equipo y permisos por equipo.
-- Anadir edge cases de tipos de permiso invalidos y permisos inexistentes.
 - Decidir si se anaden tests de integracion con PostgreSQL real para flujos criticos.
 - Mantener CI como puerta de entrada para tests y builds en cada PR.
 
@@ -154,6 +161,6 @@ Completar el flujo Git de la rama de CI y abrir PR contra `main`.
 
 Despues del merge:
 
-1. Ampliar tests backend para miembros de equipo y permisos por equipo.
-2. Valorar tests de integracion con PostgreSQL de test.
-3. Revisar `.nvmrc` o `engines` para fijar version de Node local.
+1. Valorar tests de integracion con PostgreSQL de test.
+2. Revisar `.nvmrc` o `engines` para fijar version de Node local.
+3. Definir siguiente bloque funcional: robustez de guardias, seguridad de sesion o auditoria.

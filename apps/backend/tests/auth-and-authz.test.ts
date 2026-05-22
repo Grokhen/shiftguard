@@ -1015,3 +1015,177 @@ describe('permisos edge cases', () => {
     expect(prismaMock.permiso.update).not.toHaveBeenCalled()
   })
 })
+
+describe('team members and team permissions', () => {
+  it('allows supervisors to remove members from teams in their delegation', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 1,
+      nombre_equipo: 'N1',
+      delegacion_id: 1,
+    })
+    prismaMock.miembroEquipo.delete.mockResolvedValue({
+      equipo_id: 1,
+      usuario_id: 10,
+    })
+
+    await request(app)
+      .delete('/api/equipos/1/miembros/10')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .expect(204)
+
+    expect(prismaMock.miembroEquipo.delete).toHaveBeenCalledWith({
+      where: {
+        equipo_id_usuario_id: {
+          equipo_id: 1,
+          usuario_id: 10,
+        },
+      },
+    })
+  })
+
+  it('rejects supervisors removing members from teams in another delegation', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 2,
+      nombre_equipo: 'N2',
+      delegacion_id: 2,
+    })
+
+    const res = await request(app)
+      .delete('/api/equipos/2/miembros/10')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'No puedes modificar equipos de otra delegación' })
+    expect(prismaMock.miembroEquipo.delete).not.toHaveBeenCalled()
+  })
+
+  it('returns empty permissions for teams without members', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 1,
+      nombre_equipo: 'N1',
+      delegacion_id: 1,
+    })
+    prismaMock.miembroEquipo.findMany.mockResolvedValue([])
+
+    const res = await request(app)
+      .get('/api/equipos/1/permisos')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .expect(200)
+
+    expect(res.body).toEqual([])
+    expect(prismaMock.permiso.findMany).not.toHaveBeenCalled()
+  })
+
+  it('lists team permissions for team members with year filtering', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 1,
+      nombre_equipo: 'N1',
+      delegacion_id: 1,
+    })
+    prismaMock.miembroEquipo.findMany.mockResolvedValue([{ usuario_id: 10 }, { usuario_id: 11 }])
+    prismaMock.permiso.findMany.mockResolvedValue([
+      {
+        id: 50,
+        usuario_id: 10,
+        fecha_inicio: new Date('2026-07-01T00:00:00.000Z'),
+        fecha_fin: new Date('2026-07-05T00:00:00.000Z'),
+        Usuario: {
+          id: 10,
+          nombre: 'Ada',
+          apellidos: 'Lovelace',
+          email: 'ada@example.com',
+          delegacion_id: 1,
+          activo: true,
+        },
+        Tipo: {
+          codigo: 'VACACIONES',
+        },
+        Estado: {
+          codigo: 'PENDIENTE',
+        },
+      },
+    ])
+
+    const res = await request(app)
+      .get('/api/equipos/1/permisos?anio=2026')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .expect(200)
+
+    expect(res.body).toHaveLength(1)
+    expect(prismaMock.permiso.findMany).toHaveBeenCalledWith({
+      where: {
+        usuario_id: { in: [10, 11] },
+        fecha_inicio: {
+          gte: new Date(2026, 0, 1),
+          lte: new Date(2026, 11, 31),
+        },
+      },
+      include: {
+        Usuario: {
+          select: {
+            id: true,
+            nombre: true,
+            apellidos: true,
+            email: true,
+            delegacion_id: true,
+            activo: true,
+          },
+        },
+        Tipo: true,
+        Estado: true,
+      },
+      orderBy: { fecha_inicio: 'desc' },
+    })
+  })
+
+  it('rejects supervisors listing team permissions from another delegation', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 2,
+      nombre_equipo: 'N2',
+      delegacion_id: 2,
+    })
+
+    const res = await request(app)
+      .get('/api/equipos/2/permisos')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'No puedes consultar equipos de otra delegación' })
+    expect(prismaMock.miembroEquipo.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.permiso.findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('permiso request edge cases', () => {
+  it('rejects permiso requests with unknown types', async () => {
+    prismaMock.tipoPermiso.findUnique.mockResolvedValue(null)
+
+    const res = await request(app)
+      .post('/api/permisos')
+      .set('Authorization', `Bearer ${signToken(roles.tecnico, 1, 10)}`)
+      .send({
+        tipo_id: 99,
+        fecha_inicio: '2026-07-01',
+        fecha_fin: '2026-07-05',
+      })
+      .expect(400)
+
+    expect(res.body).toEqual({ error: 'Tipo de permiso no válido: 99' })
+    expect(prismaMock.estadoPermiso.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.permiso.create).not.toHaveBeenCalled()
+  })
+
+  it('returns not found when deciding a missing permiso', async () => {
+    prismaMock.permiso.findUnique.mockResolvedValue(null)
+
+    const res = await request(app)
+      .patch('/api/permisos/999/decidir')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({ estado_id: 2 })
+      .expect(404)
+
+    expect(res.body).toEqual({ error: 'Permiso no encontrado' })
+    expect(prismaMock.estadoPermiso.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.permiso.update).not.toHaveBeenCalled()
+  })
+})
