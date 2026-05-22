@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
@@ -346,7 +347,7 @@ router.patch('/:id', async (req, res, next) => {
       }
 
       const usuariosOtraDelegacion = usuarios.filter(
-        (u) => u.delegacion_id !== guardia.delegacion_id,
+        (u: { delegacion_id: number }) => u.delegacion_id !== guardia.delegacion_id,
       )
       if (usuariosOtraDelegacion.length > 0) {
         return res.status(400).json({
@@ -366,7 +367,7 @@ router.patch('/:id', async (req, res, next) => {
         })
       }
 
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         await tx.guardia.update({
           where: { id: guardiaId },
           data: {

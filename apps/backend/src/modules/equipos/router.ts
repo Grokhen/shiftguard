@@ -293,7 +293,7 @@ router.get('/:id/permisos', async (req, res, next) => {
       select: { usuario_id: true },
     })
 
-    const idsUsuarios = miembros.map((m) => m.usuario_id)
+    const idsUsuarios = miembros.map((m: { usuario_id: number }) => m.usuario_id)
     if (idsUsuarios.length === 0) {
       return res.json([])
     }
