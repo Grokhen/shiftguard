@@ -352,3 +352,280 @@ describe('role authorization', () => {
     })
   })
 })
+
+describe('guardias', () => {
+  it('creates a guardia with assignments atomically', async () => {
+    const asignaciones = [
+      { usuario_id: 10, rol_guardia_id: 1 },
+      { usuario_id: 11, rol_guardia_id: 2 },
+    ]
+    const guardiaCreada = {
+      id: 100,
+      delegacion_id: 1,
+      fecha_inicio: new Date('2026-06-01T08:00:00.000Z'),
+      fecha_fin: new Date('2026-06-01T20:00:00.000Z'),
+      estado: 'PLANIFICADA',
+      creado_por: 20,
+    }
+    const tx = {
+      guardia: {
+        create: vi.fn().mockResolvedValue(guardiaCreada),
+      },
+      asignacionGuardia: {
+        createMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
+    }
+
+    prismaMock.guardia.findFirst.mockResolvedValue(null)
+    prismaMock.usuario.findMany.mockResolvedValue([
+      { id: 10, delegacion_id: 1 },
+      { id: 11, delegacion_id: 1 },
+    ])
+    prismaMock.rolGuardia.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }])
+    prismaMock.$transaction.mockImplementation((callback: (txArg: typeof tx) => Promise<unknown>) =>
+      callback(tx),
+    )
+    prismaMock.guardia.findUnique.mockResolvedValue({
+      ...guardiaCreada,
+      Delegacion: { id: 1, nombre: 'Madrid' },
+      Asignaciones: [],
+    })
+
+    const res = await request(app)
+      .post('/api/guardias')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({
+        fecha_inicio: '2026-06-01T08:00:00.000Z',
+        fecha_fin: '2026-06-01T20:00:00.000Z',
+        asignaciones,
+      })
+      .expect(201)
+
+    expect(res.body).toMatchObject({
+      id: 100,
+      delegacion_id: 1,
+      estado: 'PLANIFICADA',
+      creado_por: 20,
+    })
+    expect(tx.guardia.create).toHaveBeenCalledWith({
+      data: {
+        delegacion_id: 1,
+        fecha_inicio: new Date('2026-06-01T08:00:00.000Z'),
+        fecha_fin: new Date('2026-06-01T20:00:00.000Z'),
+        estado: 'PLANIFICADA',
+        creado_por: 20,
+      },
+    })
+    expect(tx.asignacionGuardia.createMany).toHaveBeenCalledWith({
+      data: [
+        { guardia_id: 100, usuario_id: 10, rol_guardia_id: 1 },
+        { guardia_id: 100, usuario_id: 11, rol_guardia_id: 2 },
+      ],
+    })
+  })
+
+  it('rejects overlapping guardias in the same delegation', async () => {
+    prismaMock.guardia.findFirst.mockResolvedValue({
+      id: 99,
+      delegacion_id: 1,
+    })
+
+    const res = await request(app)
+      .post('/api/guardias')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({
+        fecha_inicio: '2026-06-01T08:00:00.000Z',
+        fecha_fin: '2026-06-01T20:00:00.000Z',
+      })
+      .expect(400)
+
+    expect(res.body).toEqual({ error: 'Ya existe una guardia solapada en esta delegación' })
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects assignments for users from another delegation', async () => {
+    prismaMock.guardia.findFirst.mockResolvedValue(null)
+    prismaMock.usuario.findMany.mockResolvedValue([{ id: 10, delegacion_id: 2 }])
+
+    const res = await request(app)
+      .post('/api/guardias')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({
+        fecha_inicio: '2026-06-01T08:00:00.000Z',
+        fecha_fin: '2026-06-01T20:00:00.000Z',
+        asignaciones: [{ usuario_id: 10, rol_guardia_id: 1 }],
+      })
+      .expect(400)
+
+    expect(res.body).toEqual({
+      error: 'Todos los usuarios asignados deben pertenecer a la misma delegación que la guardia',
+    })
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicated guard roles in a guardia', async () => {
+    prismaMock.guardia.findFirst.mockResolvedValue(null)
+
+    const res = await request(app)
+      .post('/api/guardias')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({
+        fecha_inicio: '2026-06-01T08:00:00.000Z',
+        fecha_fin: '2026-06-01T20:00:00.000Z',
+        asignaciones: [
+          { usuario_id: 10, rol_guardia_id: 1 },
+          { usuario_id: 11, rol_guardia_id: 1 },
+        ],
+      })
+      .expect(400)
+
+    expect(res.body).toEqual({ error: 'No se puede repetir un rol de guardia en la misma guardia' })
+    expect(prismaMock.usuario.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('permisos', () => {
+  it('allows a technician to request a permiso in pending state', async () => {
+    prismaMock.tipoPermiso.findUnique.mockResolvedValue({
+      id: 1,
+      codigo: 'VACACIONES',
+      nombre: 'Vacaciones',
+    })
+    prismaMock.estadoPermiso.findUnique.mockResolvedValue({
+      id: 1,
+      codigo: 'PENDIENTE',
+      nombre: 'Pendiente',
+    })
+    prismaMock.permiso.create.mockResolvedValue({
+      id: 50,
+      usuario_id: 10,
+      tipo_id: 1,
+      estado_id: 1,
+      fecha_inicio: new Date('2026-07-01T00:00:00.000Z'),
+      fecha_fin: new Date('2026-07-05T00:00:00.000Z'),
+      creado_por: 10,
+      Tipo: { id: 1, codigo: 'VACACIONES', nombre: 'Vacaciones' },
+      Estado: { id: 1, codigo: 'PENDIENTE', nombre: 'Pendiente' },
+    })
+
+    const res = await request(app)
+      .post('/api/permisos')
+      .set('Authorization', `Bearer ${signToken(roles.tecnico, 1, 10)}`)
+      .send({
+        tipo_id: 1,
+        fecha_inicio: '2026-07-01',
+        fecha_fin: '2026-07-05',
+        observaciones: 'Verano',
+      })
+      .expect(201)
+
+    expect(res.body).toMatchObject({
+      id: 50,
+      usuario_id: 10,
+      creado_por: 10,
+      Estado: {
+        codigo: 'PENDIENTE',
+      },
+    })
+    expect(prismaMock.permiso.create).toHaveBeenCalledWith({
+      data: {
+        usuario_id: 10,
+        tipo_id: 1,
+        estado_id: 1,
+        fecha_inicio: new Date('2026-07-01'),
+        fecha_fin: new Date('2026-07-05'),
+        observaciones: 'Verano',
+        creado_por: 10,
+      },
+      include: {
+        Tipo: true,
+        Estado: true,
+      },
+    })
+  })
+
+  it('allows a supervisor to decide a pending permiso from their delegation', async () => {
+    prismaMock.permiso.findUnique.mockResolvedValue({
+      id: 50,
+      estado_id: 1,
+      observaciones: 'Original',
+      Estado: {
+        codigo: 'PENDIENTE',
+      },
+      Usuario: {
+        delegacion_id: 1,
+      },
+    })
+    prismaMock.estadoPermiso.findUnique.mockResolvedValue({
+      id: 2,
+      codigo: 'APROBADO',
+      nombre: 'Aprobado',
+    })
+    prismaMock.permiso.update.mockResolvedValue({
+      id: 50,
+      estado_id: 2,
+      decidido_por: 20,
+      Estado: {
+        codigo: 'APROBADO',
+      },
+      Tipo: {
+        codigo: 'VACACIONES',
+      },
+    })
+
+    const res = await request(app)
+      .patch('/api/permisos/50/decidir')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({
+        estado_id: 2,
+        observaciones: 'Aprobado',
+      })
+      .expect(200)
+
+    expect(res.body).toMatchObject({
+      id: 50,
+      estado_id: 2,
+      decidido_por: 20,
+      Estado: {
+        codigo: 'APROBADO',
+      },
+    })
+    expect(prismaMock.permiso.update).toHaveBeenCalledWith({
+      where: { id: 50 },
+      data: {
+        estado_id: 2,
+        decidido_por: 20,
+        observaciones: 'Aprobado',
+      },
+      include: {
+        Tipo: true,
+        Estado: true,
+      },
+    })
+  })
+
+  it('rejects supervisors deciding permisos from another delegation', async () => {
+    prismaMock.permiso.findUnique.mockResolvedValue({
+      id: 50,
+      Estado: {
+        codigo: 'PENDIENTE',
+      },
+      Usuario: {
+        delegacion_id: 2,
+      },
+    })
+
+    const res = await request(app)
+      .patch('/api/permisos/50/decidir')
+      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .send({
+        estado_id: 2,
+      })
+      .expect(403)
+
+    expect(res.body).toEqual({ error: 'No puedes decidir permisos de otra delegación' })
+    expect(prismaMock.estadoPermiso.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.permiso.update).not.toHaveBeenCalled()
+  })
+})
