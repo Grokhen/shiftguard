@@ -1,113 +1,159 @@
-# ShiftGuard - Analisis del proyecto
+# ShiftGuard - Resumen de traspaso
 
-Nota: este analisis se preparo a partir del repositorio remoto `Grokhen/shiftguard`, ya que la carpeta local estaba vacia en el momento de la revision.
+Este documento resume el estado del proyecto para poder continuar el trabajo en una nueva conversacion sin perder contexto.
 
-## Resumen del proyecto
+## Objetivo de la aplicacion
 
-ShiftGuard parece ser una aplicacion interna para coordinar guardias tecnicas, equipos, delegaciones y permisos como vacaciones, bajas medicas, formacion y asuntos propios.
+ShiftGuard es una aplicacion interna para coordinar guardias tecnicas y gestionar permisos de personas tecnicas entre delegaciones.
 
-La aplicacion distingue tres perfiles principales:
+## Problema que resuelve
 
-- Tecnico: consulta sus guardias y solicita permisos.
-- Supervisor: revisa guardias de su delegacion, consulta equipos y decide permisos.
-- Administrador: gestiona usuarios, roles, delegaciones y equipos.
+La aplicacion busca centralizar:
 
-El proyecto esta organizado como un monorepo con una API REST en Express y una SPA en React.
+- Planificacion de guardias por delegacion.
+- Asignacion de tecnicos a guardias con roles de guardia.
+- Solicitud y aprobacion de permisos como vacaciones, bajas, asuntos propios o formacion.
+- Gestion administrativa de usuarios, roles, delegaciones y equipos.
 
-## Stack detectado
+## Tipo de usuarios
+
+- Tecnicos: consultan sus guardias y solicitan permisos.
+- Supervisores: gestionan guardias, revisan equipos y deciden solicitudes de permisos de su delegacion.
+- Administradores: gestionan usuarios, delegaciones, equipos y roles.
+
+## Roles existentes
+
+Roles de usuario sembrados por el seed:
+
+- `TECNICO`
+- `SUPERVISOR`
+- `ADMIN`
+
+Roles de guardia sembrados por el seed:
+
+- `PRINCIPAL`
+- `SECUNDARIO`
+
+Decision tomada: el frontend no debe depender de IDs numericos de roles. Para roles de usuario se usa `roleCode` en el JWT. Para roles de guardia se consultan desde backend por codigo.
+
+## Funcionalidades principales
+
+- Login con JWT.
+- Rutas protegidas por rol.
+- Dashboard de tecnico:
+  - consulta de guardias propias;
+  - consulta de permisos propios;
+  - solicitud de permisos.
+- Dashboard de supervisor:
+  - consulta de guardias activas;
+  - consulta de equipos;
+  - consulta y decision de permisos pendientes;
+  - creacion de guardias con asignaciones.
+- Panel de administrador:
+  - gestion de usuarios;
+  - gestion de delegaciones;
+  - gestion de equipos y miembros.
+- Seed inicial con roles, tipos de permiso, estados de permiso, roles de guardia, delegacion inicial y usuario admin.
+
+## MVP definido
+
+El MVP actual cubre:
+
+- Autenticacion basica.
+- Separacion de experiencia por rol.
+- Gestion administrativa basica.
+- Creacion y consulta de guardias.
+- Asignacion de tecnicos a guardias.
+- Solicitud y decision de permisos.
+- Persistencia en PostgreSQL con Prisma.
+
+## Funcionalidades dejadas para futuras versiones
+
+- Ampliar tests automatizados de backend y anadir tests frontend/E2E.
+- OpenAPI o documentacion formal de endpoints.
+- Refresh tokens o estrategia de sesion mas completa.
+- Recuperacion de password.
+- Auditoria de acciones administrativas.
+- Notificaciones.
+- Calendario avanzado de guardias y permisos.
+- Reglas complejas de disponibilidad.
+- Constraints o estrategia fuerte contra solapes de guardias a nivel de base de datos.
+- Despliegue completo con backend/frontend, no solo base de datos.
+
+## Stack tecnologico elegido
 
 - Monorepo con npm workspaces.
-- Backend: Node.js, TypeScript, Express 5, Prisma, PostgreSQL, Zod, JWT, Argon2, Helmet, CORS y Morgan.
-- Frontend: React 19, Vite 7, TypeScript, React Router 7 y Tailwind CSS.
-- Base de datos: PostgreSQL con Prisma migrations.
-- Calidad: TypeScript, ESLint y Prettier.
-- Docker: `docker-compose.yml` levanta solo PostgreSQL.
+- Backend:
+  - Node.js;
+  - TypeScript;
+  - Express 5;
+  - Prisma;
+  - PostgreSQL;
+  - Zod;
+  - JWT;
+  - Argon2;
+  - Helmet;
+  - CORS;
+  - Morgan.
+- Frontend:
+  - React 19;
+  - Vite 7;
+  - TypeScript;
+  - React Router 7;
+  - Tailwind CSS.
+- Base de datos:
+  - PostgreSQL;
+  - Prisma migrations.
+- Calidad:
+  - TypeScript;
+  - ESLint;
+  - Prettier.
+- Infra local:
+  - `docker-compose.yml` levanta PostgreSQL.
 
-## Estructura del repositorio
+## Arquitectura propuesta y actual
 
-- `apps/backend`: API Express, configuracion, middlewares, routers por dominio, Prisma schema, migraciones y seed.
-- `apps/backend/src/modules`: rutas de `auth`, `usuarios`, `delegaciones`, `equipos`, `guardias`, `permisos` y `rolesUsuario`.
-- `apps/frontend`: aplicacion React/Vite.
-- `apps/frontend/src/pages`: pantallas principales por rol y paginas de administracion.
-- `apps/frontend/src/services`: cliente HTTP y servicios por recurso.
-- `apps/frontend/src/context`: contexto de autenticacion.
+Arquitectura actual:
+
+- API REST Express en `apps/backend`.
+- SPA React/Vite en `apps/frontend`.
+- Persistencia mediante Prisma y PostgreSQL.
+- Routers backend separados por dominio.
+- Servicios frontend por recurso API.
+- Estado de autenticacion frontend en `AuthProvider`.
+
+Patron actual:
+
+- Backend con routers de dominio que contienen validacion, autorizacion, acceso a datos y logica de negocio.
+- Se empezo a extraer autorizacion compartida a `apps/backend/src/utils/authz.ts`.
+- No existe todavia una capa formal de servicios/casos de uso/repositorios.
+
+Direccion recomendada:
+
+- Mantener cambios pequenos.
+- Extraer logica compartida cuando reduzca duplicacion real.
+- Antes de introducir una arquitectura mas pesada, cubrir flujos criticos con tests.
+
+## Estructura de carpetas
+
+- `apps/backend`: API Express, Prisma, config, middlewares, routers y seed.
+- `apps/backend/prisma`: schema y migraciones.
+- `apps/backend/src/config`: variables de entorno.
+- `apps/backend/src/middlewares`: auth y error handler.
+- `apps/backend/src/modules`: routers de dominios.
+- `apps/backend/src/utils`: helpers compartidos, actualmente autorizacion.
+- `apps/frontend`: SPA React/Vite.
+- `apps/frontend/src/pages`: pantallas por rol y paginas admin.
+- `apps/frontend/src/services`: cliente API y servicios por recurso.
+- `apps/frontend/src/context`: autenticacion.
 - `apps/frontend/src/components`: layout y rutas protegidas.
+- `apps/frontend/src/constants`: codigos de rol.
 - `apps/frontend/src/utils`: utilidades de fecha y JWT.
-- `packages/*`: declarado como workspace, aunque no se detectaron paquetes.
+- `docs`: documentacion de proyecto y traspaso.
 
-## Como ejecutar el proyecto
+## Modelo de datos / entidades principales
 
-Comandos detectados o inferidos:
-
-```sh
-npm install
-docker compose up -d
-```
-
-Backend:
-
-```sh
-cd apps/backend
-npm install
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:seed
-npm run dev
-```
-
-Frontend:
-
-```sh
-cd apps/frontend
-npm install
-npm run dev
-```
-
-Variables de entorno esperadas en backend:
-
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `AUTH_PEPPER`
-- `PORT`
-- `SEED_ADMIN_PASSWORD` opcional para el seed inicial
-
-Variable esperada en frontend:
-
-- `VITE_API_BASE_URL=http://localhost:3001`
-
-Scripts detectados:
-
-- Raiz: `dev:backend`, `build:backend`, `start:backend`, `dev:frontend`, `build:frontend`.
-- Backend: `dev`, `build`, `start`, `test`, `prisma:generate`, `prisma:migrate`, `prisma:seed`.
-- Frontend: `dev`, `build`, `lint`, `preview`.
-
-Riesgo observado: los scripts raiz de backend apuntan a `--workspace=@app/backend`, pero el paquete backend se llama `backend`; probablemente esos scripts fallan hasta corregir el nombre del workspace.
-
-## Arquitectura actual
-
-La arquitectura es sencilla y directa:
-
-- `apps/backend/src/server.ts` crea la app Express, aplica middlewares globales y monta routers bajo `/api`.
-- Cada router contiene validacion de entrada, autorizacion, consultas Prisma y parte de la logica de negocio.
-- No hay capa separada de servicios, casos de uso o repositorios.
-- Prisma se expone como cliente global desde `apps/backend/src/prisma.ts`.
-- `apps/frontend/src/main.tsx` monta React, `AuthProvider` y `BrowserRouter`.
-- `apps/frontend/src/App.tsx` define rutas por rol usando `ProtectedRoute`.
-- Los servicios frontend encapsulan las llamadas HTTP al backend.
-
-Puntos de entrada principales:
-
-- Backend: `apps/backend/src/server.ts`.
-- Frontend: `apps/frontend/src/main.tsx`.
-- Rutas frontend: `apps/frontend/src/App.tsx`.
-- Prisma schema: `apps/backend/prisma/schema.prisma`.
-- Seed: `apps/backend/src/prisma/seed.ts`.
-
-## Modelo de datos / persistencia
-
-La persistencia usa PostgreSQL mediante Prisma.
-
-Entidades principales:
+Entidades Prisma principales:
 
 - `Delegacion`
 - `RolUsuario`
@@ -122,90 +168,219 @@ Entidades principales:
 - `RolGuardia`
 - `AsignacionGuardia`
 
-El seed crea roles de usuario, tipos y estados de permiso, roles de guardia, una delegacion inicial y un usuario administrador.
+Relaciones importantes:
 
-Hay indices y claves unicas importantes para emails, codigos, equipos por delegacion, saldos por usuario/anio/tipo y asignaciones de guardia.
+- Un usuario pertenece a una delegacion y tiene un rol.
+- Un equipo pertenece a una delegacion.
+- `MiembroEquipo` une usuarios y equipos.
+- Un permiso pertenece a un usuario, tipo y estado.
+- Una guardia pertenece a una delegacion.
+- `AsignacionGuardia` une guardia, usuario y rol de guardia.
 
-## Seguridad
+## Decisiones tecnicas tomadas
 
-Buenas practicas presentes:
+- Mantener monorepo npm workspaces.
+- Usar Prisma como ORM y fuente del modelo de datos.
+- Usar Zod para validar entradas en backend.
+- Usar Argon2 con `AUTH_PEPPER` para passwords.
+- Usar JWT con expiracion corta.
+- Incluir `roleCode` en el JWT para que frontend no dependa de IDs de roles de usuario.
+- Consultar roles de guardia desde backend para evitar IDs hardcodeados en frontend.
+- No devolver `password_hash` en respuestas API.
+- Centralizar helpers de autorizacion en `apps/backend/src/utils/authz.ts`.
+- Corregir rutas `/api/usuarios/me` antes de `/:id`.
+- Crear guardias con asignaciones en una sola llamada y dentro de una transaccion.
+- Usar `CORS_ORIGIN` opcional para restringir CORS por entorno.
+- Mantener `PORT` opcional con default `3001`.
+- Mantener los cambios en PRs pequenas y verificables.
 
-- Password hashing con Argon2 y pepper.
-- JWT con expiracion corta.
-- Validacion de entrada con Zod.
-- Helmet activado.
-- Separacion basica por roles en backend.
-- Restricciones de delegacion en varias rutas de equipos y guardias.
+## Decisiones pendientes
 
-Riesgos detectados:
+- Estrategia de tests de integracion backend con base de datos real.
+- Framework de testing frontend/E2E.
+- Estrategia para refresh tokens o renovacion de sesion.
+- Politica de bloqueo por intentos fallidos.
+- Politica de CORS en produccion.
+- Estrategia definitiva para evitar solapes concurrentes de guardias.
+- Si se introduce capa de servicios/casos de uso.
+- Si se documentan endpoints con OpenAPI.
+- Como gestionar auditoria de acciones.
 
-- Algunas respuestas pueden exponer `password_hash` al devolver entidades `Usuario` completas.
-- El login no comprueba `activo`, `bloqueado_en`, `intentos_fallidos` ni `requiere_reset`.
-- `POST /api/guardias` esta autenticado, pero no valida explicitamente supervisor/admin.
-- La decision de permisos valida rol, pero debe revisarse que siempre limite por delegacion cuando el usuario no sea admin.
-- `cors()` esta abierto a cualquier origen.
-- El token se guarda en `localStorage`, lo que aumenta impacto ante XSS.
-- El seed puede usar una password admin por defecto si no se define `SEED_ADMIN_PASSWORD`.
-- El `errorHandler` usa `err.status`, mientras que varios routers asignan `statusCode`; algunos errores esperados podrian terminar como 500.
+## Riesgos tecnicos
 
-## Testing y calidad
+- Hay una base inicial de tests backend con Vitest y Supertest, usando mocks de Prisma y Argon2.
+- Falta cobertura de integracion contra PostgreSQL real y tests frontend/E2E.
+- La logica de negocio sigue bastante mezclada con routers.
+- La prevencion de solapes de guardia vive principalmente en codigo de aplicacion.
+- Algunas operaciones de permisos y guardias necesitan mas cobertura de edge cases.
+- `npm ci` reporta vulnerabilidades existentes en dependencias.
+- Vite recomienda Node `20.19+`; el entorno usado tenia Node `20.11.1`, aunque el build compilo.
+- `packages/*` esta declarado en workspaces, pero no hay paquetes compartidos.
 
-No se detectaron tests automatizados.
+## Riesgos de seguridad
 
-Calidad disponible:
+- JWT se guarda en `localStorage`, sensible ante XSS.
+- No hay refresh token ni invalidacion de tokens emitidos.
+- Login ya rechaza usuarios inactivos/bloqueados, pero aun no gestiona intentos fallidos.
+- Seed puede usar password admin por defecto si no se define `SEED_ADMIN_PASSWORD`.
+- Falta auditoria de acciones administrativas y decisiones de permisos.
+- Falta revisar dependencias vulnerables con criterio.
 
-- Frontend: `npm run lint`.
-- Frontend build: `tsc -b && vite build`.
-- Backend build: `tsc -p tsconfig.json`.
-- Backend test: placeholder que falla (`Error: no test specified`).
-- Hay configuracion de ESLint y Prettier, pero no se detecto un script raiz unificado de lint/test.
+## Buenas practicas acordadas
 
-Faltan tests especialmente para:
+- No instalar dependencias sin permiso explicito.
+- No tocar migraciones salvo que sea necesario.
+- No modificar secretos ni crear `.env` con valores reales.
+- Mantener cambios pequenos y justificados.
+- Usar `rg` para buscar.
+- Usar `apply_patch` para editar archivos manualmente.
+- No revertir cambios ajenos.
+- Ejecutar build/lint antes de cerrar una tanda.
+- Trabajar con ramas y commits frecuentes.
+- Evitar exponer datos sensibles.
+- Preferir codigos estables frente a IDs sembrados en frontend.
 
-- Login y autenticacion.
-- Autorizacion por rol.
-- Aislamiento por delegacion.
-- Creacion y modificacion de guardias.
-- Solicitud y decision de permisos.
-- Validacion de datos y errores.
+## Estado actual de implementacion
 
-## Riesgos antes de modificar
+Estado de Git local al preparar este traspaso:
 
-- Roles hardcodeados por ID en frontend (`1`, `2`, `3`), dependientes del seed.
-- Roles de guardia hardcodeados por ID en `SupervisorDashboard`.
-- Rutas `/api/usuarios/me` y `/api/usuarios/me/password` parecen estar definidas despues de `/:id`, lo que puede hacer que `/:id` las intercepte.
-- Creacion de guardia y asignacion de tecnicos no es transaccional; puede quedar una guardia creada sin asignaciones.
-- La actualizacion de guardia borra y recrea asignaciones sin transaccion.
-- La prevencion de solapes de guardia vive en codigo de aplicacion, no como restriccion fuerte en base de datos.
-- Hay duplicacion de helpers de autorizacion (`ensureAdmin`, `ensureSupervisorOrAdmin`, lookup de rol).
-- El frontend espera `message` en errores, pero el backend suele devolver `{ error }`.
-- No hay tests que protejan flujos criticos.
+- Rama actual: `codex/guard-role-and-authz-cleanup`.
+- `main` ya contiene la PR anterior `codex/recommendations-hardening`.
+- La rama actual contiene una segunda tanda ya publicada con:
+  - creacion atomica de guardias con asignaciones;
+  - roles de guardia obtenidos desde backend;
+  - autorizacion centralizada;
+  - CORS configurable.
 
-## Recomendaciones
+Commits relevantes ya mergeados en `main`:
 
-Prioridad alta:
+- `docs: add project summary and agent guidance`
+- `fix(backend): harden auth and user data responses`
+- `fix(app): use role codes and improve client errors`
+- `fix(backend): satisfy strict transaction typings`
 
-- Evitar que el backend devuelva `password_hash` en cualquier respuesta.
-- Corregir el orden de rutas de `usuarios` para que `/me` y `/me/password` funcionen.
-- Corregir scripts raiz de backend para usar el nombre real del workspace.
-- Restringir creacion de guardias a supervisor/admin.
-- Verificar delegacion al decidir permisos.
-- Unificar formato de errores backend/frontend.
+Commits relevantes de la rama actual:
 
-Prioridad media:
+- `fix(guardias): create shifts with role-code assignments`
+- `refactor(backend): centralize role authorization helpers`
+- `chore(backend): make cors origin configurable`
 
-- Centralizar autorizacion por rol en helpers/middlewares reutilizables.
-- Reemplazar IDs hardcodeados de roles por codigos o datos obtenidos del backend.
-- Envolver operaciones compuestas de guardias en transacciones.
-- Configurar CORS por entorno.
-- Anadir checks de usuario activo/bloqueado en login.
+Rama actual publicada:
 
-Prioridad baja:
+- `codex/guard-role-and-authz-cleanup`
+- PR sugerida: `https://github.com/Grokhen/shiftguard/pull/new/codex/guard-role-and-authz-cleanup`
 
-- Documentar endpoints con OpenAPI o similar.
-- Crear scripts raiz unificados para `build`, `lint`, `test` y `typecheck`.
-- Extraer logica compleja de dashboards frontend a hooks o componentes menores.
+## Archivos importantes creados o modificados
 
-## Siguiente paso recomendado
+Creados:
 
-La primera modificacion razonable seria preparar el terreno sin cambiar funcionalidad: anadir `AGENTS.md`, corregir scripts raiz y crear una base minima de verificacion. Despues, abordar el riesgo de seguridad mas claro: eliminar exposicion de `password_hash` y cubrirlo con pruebas de API.
+- `AGENTS.md`
+- `docs/project-summary.md`
+- `apps/backend/src/utils/authz.ts`
+
+Modificados en las tandas recientes:
+
+- `package.json`
+- `README.md`
+- `apps/backend/src/config/env.ts`
+- `apps/backend/src/server.ts`
+- `apps/backend/src/middlewares/authRequired.ts`
+- `apps/backend/src/middlewares/errorHandler.ts`
+- `apps/backend/src/modules/auth/router.ts`
+- `apps/backend/src/modules/usuarios/router.ts`
+- `apps/backend/src/modules/delegaciones/router.ts`
+- `apps/backend/src/modules/equipos/router.ts`
+- `apps/backend/src/modules/guardias/router.ts`
+- `apps/backend/src/modules/permisos/router.ts`
+- `apps/backend/src/modules/rolesUsuario/router.ts`
+- `apps/frontend/src/constants/roles.ts`
+- `apps/frontend/src/utils/jwt.ts`
+- `apps/frontend/src/components/routing/ProtectedRoute.tsx`
+- `apps/frontend/src/components/layout/AppLayout.tsx`
+- `apps/frontend/src/pages/LoginPage.tsx`
+- `apps/frontend/src/pages/SupervisorDashboard.tsx`
+- `apps/frontend/src/services/apiClient.ts`
+- `apps/frontend/src/services/authService.ts`
+- `apps/frontend/src/services/guardiasService.ts`
+
+## Comandos de instalacion y ejecucion
+
+Instalacion:
+
+```sh
+npm install
+```
+
+Base de datos local:
+
+```sh
+docker compose up -d
+```
+
+Backend:
+
+```sh
+cd apps/backend
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
+npm run dev
+```
+
+Frontend:
+
+```sh
+cd apps/frontend
+npm run dev
+```
+
+Comandos desde raiz:
+
+```sh
+npm run dev:backend
+npm run dev:frontend
+npm run build:backend
+npm run build:frontend
+npm run lint:frontend
+npm run build
+npm run lint
+```
+
+Tests:
+
+```sh
+cd apps/backend
+npm test
+```
+
+Nota: los tests backend actuales usan mocks y no requieren PostgreSQL de test.
+
+## Verificacion ejecutada
+
+En las ultimas tandas se ejecuto:
+
+```sh
+npm_config_cache=/private/tmp/npm-cache-shiftguard-clean npm run build:backend
+npm_config_cache=/private/tmp/npm-cache-shiftguard-clean npm run lint:frontend
+npm_config_cache=/private/tmp/npm-cache-shiftguard-clean npm run build:frontend
+npm run test --workspace backend
+```
+
+Resultado: correcto.
+
+Avisos conocidos:
+
+- Vite avisa que Node `20.11.1` esta por debajo de `20.19+`, pero el build termina.
+- `baseline-browser-mapping` y Browserslist reportan datos antiguos.
+- `npm ci` reporto vulnerabilidades existentes en dependencias.
+
+## Siguiente tarea recomendada
+
+La siguiente tarea recomendada es ampliar la cobertura automatizada y preparar integracion continua:
+
+- anadir tests de integracion backend contra una base PostgreSQL de test;
+- ampliar cobertura de administracion, equipos y edge cases de permisos;
+- anadir CI con `npm run test --workspace backend`, build backend, lint frontend y build frontend;
+- mantener los tests existentes de auth, autorizacion, guardias y permisos como red de seguridad.
+
+Antes de seguir con nuevas funcionalidades, conviene asegurar estos flujos para que las siguientes refactorizaciones sean seguras.
