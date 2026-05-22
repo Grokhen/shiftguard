@@ -60,6 +60,10 @@ async function ensureSupervisorOrAdmin(user: AuthUser) {
   }
 }
 
+function isAdminCodigo(codigo: string | null) {
+  return codigo === 'ADMIN'
+}
+
 router.get('/tipos', async (_req, res, next) => {
   try {
     const tipos = await prisma.tipoPermiso.findMany({
@@ -221,16 +225,27 @@ router.patch('/:id/decidir', async (req, res, next) => {
     const dto = decidirPermisoSchema.parse(req.body)
 
     await ensureSupervisorOrAdmin(user)
+    const rolCodigo = await getUserRoleCodigo(user)
+    const isAdmin = isAdminCodigo(rolCodigo)
 
     const permiso = await prisma.permiso.findUnique({
       where: { id: permisoId },
       include: {
         Estado: true,
+        Usuario: {
+          select: {
+            delegacion_id: true,
+          },
+        },
       },
     })
 
     if (!permiso) {
       return res.status(404).json({ error: 'Permiso no encontrado' })
+    }
+
+    if (!isAdmin && permiso.Usuario.delegacion_id !== user.deleg) {
+      return res.status(403).json({ error: 'No puedes decidir permisos de otra delegación' })
     }
 
     if (permiso.Estado.codigo !== 'PENDIENTE') {

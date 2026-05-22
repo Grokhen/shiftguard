@@ -16,7 +16,7 @@ router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body)
     const user = await prisma.usuario.findUnique({ where: { email } })
-    if (!user || !user.password_hash)
+    if (!user || !user.password_hash || !user.activo || user.bloqueado_en)
       return res.status(401).json({ error: 'Credenciales inválidas' })
 
     const ok = await argon2.verify(user.password_hash, password + ENV.AUTH_PEPPER)

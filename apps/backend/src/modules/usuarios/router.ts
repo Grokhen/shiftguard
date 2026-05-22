@@ -69,6 +69,21 @@ const cambiarPasswordSchema = z.object({
   password_nueva: z.string().min(8),
 })
 
+const usuarioSeguroSelect = {
+  id: true,
+  nombre: true,
+  apellidos: true,
+  email: true,
+  delegacion_id: true,
+  rol_id: true,
+  activo: true,
+  requiere_reset: true,
+  ultimo_login: true,
+  password_actualizada_en: true,
+  fecha_creacion: true,
+  fecha_actualizacion: true,
+} as const
+
 router.post('/', async (req, res, next) => {
   try {
     const authUser = req.user as AuthUser
@@ -99,40 +114,10 @@ router.post('/', async (req, res, next) => {
         activo: dto.activo ?? true,
         requiere_reset: true,
       },
+      select: usuarioSeguroSelect,
     })
 
     res.status(201).json(usuario)
-  } catch (e) {
-    next(e)
-  }
-})
-
-router.patch('/:id', async (req, res, next) => {
-  try {
-    const authUser = req.user as AuthUser
-    await ensureAdmin(authUser)
-
-    const usuarioId = Number(req.params.id)
-    if (Number.isNaN(usuarioId)) {
-      return res.status(400).json({ error: 'ID de usuario inválido' })
-    }
-
-    const dto = editarUsuarioSchema.parse(req.body)
-
-    const data: any = { ...dto }
-
-    if (dto.password) {
-      data.password_hash = await argon2.hash(dto.password + ENV.AUTH_PEPPER)
-      data.requiere_reset = false
-      delete data.password
-    }
-
-    const usuario = await prisma.usuario.update({
-      where: { id: usuarioId },
-      data,
-    })
-
-    res.json(usuario)
   } catch (e) {
     next(e)
   }
@@ -154,17 +139,7 @@ router.get('/', async (req, res, next) => {
     const usuarios = await prisma.usuario.findMany({
       where,
       orderBy: { apellidos: 'asc' },
-      select: {
-        id: true,
-        nombre: true,
-        apellidos: true,
-        email: true,
-        delegacion_id: true,
-        rol_id: true,
-        activo: true,
-        fecha_creacion: true,
-        ultimo_login: true,
-      },
+      select: usuarioSeguroSelect,
     })
 
     res.json(usuarios)
@@ -179,18 +154,7 @@ router.get('/me', async (req, res, next) => {
 
     const usuario = await prisma.usuario.findUnique({
       where: { id: authUser.sub },
-      select: {
-        id: true,
-        nombre: true,
-        apellidos: true,
-        email: true,
-        delegacion_id: true,
-        rol_id: true,
-        activo: true,
-        fecha_creacion: true,
-        fecha_actualizacion: true,
-        ultimo_login: true,
-      },
+      select: usuarioSeguroSelect,
     })
 
     if (!usuario) {
@@ -212,17 +176,7 @@ router.patch('/me', async (req, res, next) => {
     const usuario = await prisma.usuario.update({
       where: { id: authUser.sub },
       data: dto,
-      select: {
-        id: true,
-        nombre: true,
-        apellidos: true,
-        email: true,
-        delegacion_id: true,
-        rol_id: true,
-        activo: true,
-        fecha_creacion: true,
-        fecha_actualizacion: true,
-      },
+      select: usuarioSeguroSelect,
     })
 
     res.json(usuario)
@@ -266,6 +220,38 @@ router.patch('/me/password', async (req, res, next) => {
     })
 
     res.status(204).send()
+  } catch (e) {
+    next(e)
+  }
+})
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const authUser = req.user as AuthUser
+    await ensureAdmin(authUser)
+
+    const usuarioId = Number(req.params.id)
+    if (Number.isNaN(usuarioId)) {
+      return res.status(400).json({ error: 'ID de usuario inválido' })
+    }
+
+    const dto = editarUsuarioSchema.parse(req.body)
+
+    const data: any = { ...dto }
+
+    if (dto.password) {
+      data.password_hash = await argon2.hash(dto.password + ENV.AUTH_PEPPER)
+      data.requiere_reset = false
+      delete data.password
+    }
+
+    const usuario = await prisma.usuario.update({
+      where: { id: usuarioId },
+      data,
+      select: usuarioSeguroSelect,
+    })
+
+    res.json(usuario)
   } catch (e) {
     next(e)
   }
