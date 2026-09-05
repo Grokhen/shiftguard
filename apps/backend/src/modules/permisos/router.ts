@@ -34,6 +34,12 @@ const listarMisPermisosQuerySchema = z.object({
   estado_id: z.coerce.number().int().optional(), // ?estado_id=2
 })
 
+const listarPendientesQuerySchema = z
+  .object({
+    delegacion_id: z.coerce.number().int().positive().optional(),
+  })
+  .strict()
+
 const decidirPermisoSchema = z.object({
   estado_id: z.number().int().positive(),
   observaciones: z.string().max(500).optional(),
@@ -58,6 +64,39 @@ router.get('/estados', async (_req, res, next) => {
     res.json(estados)
   } catch (e) {
     next(e)
+  }
+})
+
+router.get('/pendientes', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    await ensureSupervisorOrAdmin(user)
+    const query = listarPendientesQuerySchema.parse(req.query)
+    const isAdmin = isAdminCodigo(await getUserRoleCodigo(user))
+    if (!isAdmin && query.delegacion_id !== undefined && query.delegacion_id !== user.deleg) {
+      return res.status(403).json({ error: 'No puedes consultar permisos de otra delegación' })
+    }
+
+    const delegacionId = isAdmin ? query.delegacion_id : user.deleg
+    const where: Prisma.PermisoWhereInput = {
+      Estado: { codigo: 'PENDIENTE' },
+      ...(delegacionId !== undefined ? { Usuario: { delegacion_id: delegacionId } } : {}),
+    }
+    // Query permissions directly: membership and calendar year do not define the approval scope.
+    const permisos = await prisma.permiso.findMany({
+      where,
+      include: {
+        Tipo: true,
+        Estado: true,
+        Usuario: {
+          select: { id: true, nombre: true, apellidos: true, email: true, delegacion_id: true },
+        },
+      },
+      orderBy: [{ fecha_inicio: 'asc' }, { id: 'asc' }],
+    })
+    res.json(permisos)
+  } catch (error) {
+    next(error)
   }
 })
 

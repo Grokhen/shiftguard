@@ -18,9 +18,11 @@ import {
 } from '../services/equiposService'
 import {
   getPermisosEquipo,
+  getPermisosPendientes,
   getEstadosPermiso,
   decidirPermiso,
   type PermisoEquipo,
+  type PermisoConUsuario,
 } from '../services/permisosService'
 import { formatDateLong, formatTime } from '../utils/date'
 
@@ -61,10 +63,11 @@ export function SupervisorDashboard() {
   const [estadoAprobadoId, setEstadoAprobadoId] = useState<number | null>(null)
   const [estadoRechazadoId, setEstadoRechazadoId] = useState<number | null>(null)
 
-  const [permisosPendientes, setPermisosPendientes] = useState<PermisoEquipo[]>([])
+  const [permisosPendientes, setPermisosPendientes] = useState<PermisoConUsuario[]>([])
   const [isLoadingPendientes, setIsLoadingPendientes] = useState(false)
   const [errorPendientes, setErrorPendientes] = useState<string | null>(null)
   const [permisoEnDecision, setPermisoEnDecision] = useState<number | null>(null)
+  const [pendientesRevision, setPendientesRevision] = useState(0)
 
   const [tecnicosDisponibles, setTecnicosDisponibles] = useState<UsuarioBasico[]>([])
   const [errorTecnicos, setErrorTecnicos] = useState<string | null>(null)
@@ -149,34 +152,30 @@ export function SupervisorDashboard() {
   }, [accessToken, equipoSeleccionadoId])
 
   useEffect(() => {
-    if (!accessToken || equipos.length === 0) return
+    if (!accessToken) return
+    let active = true
     ;(async () => {
       setIsLoadingPendientes(true)
       setErrorPendientes(null)
 
       try {
-        const currentYear = new Date().getFullYear()
-
-        const allArrays = await Promise.all(
-          equipos.map((eq) => getPermisosEquipo(accessToken, eq.id, currentYear)),
-        )
-
-        const allPermisos = allArrays.flat()
-        const pendientes = allPermisos.filter((p) => p.Estado.codigo === 'PENDIENTE')
-
-        setPermisosPendientes(pendientes)
+        const pendientes = await getPermisosPendientes(accessToken)
+        if (active) setPermisosPendientes(pendientes)
       } catch (err) {
-        console.error(err)
+        if (!active) return
         setErrorPendientes(
           err instanceof Error
             ? err.message
-            : 'Error al cargar permisos pendientes de tus equipos.',
+            : 'Error al cargar permisos pendientes de tu delegación.',
         )
       } finally {
-        setIsLoadingPendientes(false)
+        if (active) setIsLoadingPendientes(false)
       }
     })()
-  }, [accessToken, equipos])
+    return () => {
+      active = false
+    }
+  }, [accessToken, pendientesRevision])
 
   useEffect(() => {
     if (!accessToken || !equipoSeleccionadoId) {
@@ -243,8 +242,8 @@ export function SupervisorDashboard() {
     [rolesGuardia],
   )
 
-  async function handleDecidirPermiso(permiso: PermisoEquipo, accion: 'APROBAR' | 'RECHAZAR') {
-    if (!accessToken) return
+  async function handleDecidirPermiso(permiso: PermisoConUsuario, accion: 'APROBAR' | 'RECHAZAR') {
+    if (!accessToken || permisoEnDecision !== null) return
     if (!estadoAprobadoId || !estadoRechazadoId) {
       alert(
         'No se han cargado correctamente los estados de permiso. Contacta con un administrador.',
@@ -291,6 +290,8 @@ export function SupervisorDashboard() {
       )
     } finally {
       setPermisoEnDecision(null)
+      // Reconcile the inbox after both successful decisions and conflicts with another reviewer.
+      setPendientesRevision((revision) => revision + 1)
     }
   }
 
@@ -424,8 +425,7 @@ export function SupervisorDashboard() {
               const principal = g.Asignaciones.find((a) => a.RolGuardia.codigo === 'PRINCIPAL')
 
               const secundarios = g.Asignaciones.filter(
-                (a) =>
-                  a.id !== principal?.id && a.RolGuardia.codigo === 'SECUNDARIO',
+                (a) => a.id !== principal?.id && a.RolGuardia.codigo === 'SECUNDARIO',
               )
 
               return (
@@ -576,13 +576,19 @@ export function SupervisorDashboard() {
           <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
             Permisos pendientes de aprobación
           </h2>
-          {/*<Link
-            to="/permisos"
-            className="text-xs font-medium text-blue-600 hover:text-blue-700"
+          <button
+            type="button"
+            disabled={isLoadingPendientes || permisoEnDecision !== null}
+            onClick={() => setPendientesRevision((revision) => revision + 1)}
+            className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
           >
-            Ver todos los permisos →
-          </Link>*/}
+            Actualizar
+          </button>
         </div>
+
+        <p className="mb-3 text-xs text-slate-500">
+          Solicitudes de toda tu delegación, de cualquier año.
+        </p>
 
         {isLoadingPendientes ? (
           <p className="text-sm text-slate-500">Cargando permisos pendientes…</p>
@@ -592,7 +598,7 @@ export function SupervisorDashboard() {
           </div>
         ) : permisosPendientes.length === 0 ? (
           <p className="text-sm text-slate-500">
-            No hay solicitudes de permiso pendientes de tus equipos.
+            No hay solicitudes de permiso pendientes en tu delegación.
           </p>
         ) : (
           <ul className="space-y-2 text-sm">
@@ -613,7 +619,7 @@ export function SupervisorDashboard() {
                 <div className="flex gap-2 text-xs">
                   <button
                     type="button"
-                    disabled={permisoEnDecision === p.id}
+                    disabled={permisoEnDecision !== null}
                     onClick={() => handleDecidirPermiso(p, 'APROBAR')}
                     className="rounded-lg bg-emerald-600 px-3 py-1 font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
@@ -621,7 +627,7 @@ export function SupervisorDashboard() {
                   </button>
                   <button
                     type="button"
-                    disabled={permisoEnDecision === p.id}
+                    disabled={permisoEnDecision !== null}
                     onClick={() => handleDecidirPermiso(p, 'RECHAZAR')}
                     className="rounded-lg bg-red-600 px-3 py-1 font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >

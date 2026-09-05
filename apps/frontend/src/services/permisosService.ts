@@ -73,8 +73,23 @@ export type UsuarioPermiso = {
   delegacion_id: number
 }
 
-export type PermisoEquipo = Permiso & {
+export type PermisoConUsuario = Permiso & {
   Usuario: UsuarioPermiso
+}
+
+export type PermisoEquipo = PermisoConUsuario
+
+export async function getPermisosPendientes(
+  accessToken: string,
+  delegacionId?: number,
+): Promise<PermisoConUsuario[]> {
+  const search = new URLSearchParams()
+  if (delegacionId != null) search.set('delegacion_id', String(delegacionId))
+  const query = search.toString()
+  return authorizedGet<PermisoConUsuario[]>(
+    query ? `/api/permisos/pendientes?${query}` : '/api/permisos/pendientes',
+    accessToken,
+  )
 }
 
 export async function getPermisosEquipo(

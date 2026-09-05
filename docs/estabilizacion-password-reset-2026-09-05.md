@@ -2,6 +2,8 @@
 
 Esta tanda aplica el campo existente `requiere_reset` y completa el flujo entre API e interfaz. No modifica Prisma ni necesita migraciones, dependencias nuevas o cambios de secretos.
 
+La [tanda siguiente](estabilizacion-pendientes-2026-09-05.md) corrige la bandeja de permisos pendientes por delegación. Este documento conserva el alcance y la verificación del cambio de contraseña.
+
 ## Comportamiento
 
 - El login incluye `requiresPasswordChange` en el JWT para dirigir al usuario a `/cambiar-password`.
