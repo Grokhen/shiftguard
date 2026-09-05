@@ -101,6 +101,12 @@ El seed crea roles, estados/tipos de permisos y un usuario admin (`admin@empresa
 
 ## Ejemplos de uso
 
+### Pruebas automatizadas
+
+`npm run test --workspace backend` ejecuta la suite habitual con persistencia simulada. La integración con PostgreSQL real usa `npm run typecheck:integration --workspace backend` y `npm run test:integration --workspace backend`.
+
+La segunda orden requiere `TEST_DATABASE_URL` hacia una base local llamada `shiftguard_test`, sin parámetros en la URL. El ejecutor crea un esquema aleatorio, aplica las migraciones existentes, ejecuta las pruebas y elimina ese esquema al terminar. No utiliza `DATABASE_URL` como alternativa. CI prepara PostgreSQL 16 temporal y ejecuta ambas suites en PRs a `main` y pushes a `main` o `codex/**`. Ver [alcance y uso de la integración](docs/integracion-postgresql-2026-09-05.md).
+
 ### 1. Autenticación de usuario
 ```sh
 curl -X POST http://localhost:3001/api/auth/login \
@@ -157,6 +163,6 @@ La [rama de estabilización](https://github.com/Grokhen/shiftguard/tree/codex/se
 - Consultar la [bandeja de pendientes por delegación](docs/estabilizacion-pendientes-2026-09-05.md), verificada con usuarios sin equipo y solicitudes de otros años.
 - Consultar el [contrato de fechas de permisos](docs/estabilizacion-fechas-2026-09-05.md), incluidas las restricciones de entrada y la verificación de zonas horarias.
 - Consultar las [fechas y los rangos de guardias](docs/estabilizacion-guardias-fechas-2026-09-05.md), incluidos los límites del intervalo y la compatibilidad de clientes externos.
-- Añadir integración con PostgreSQL real y pruebas E2E; ejecutar las pruebas existentes con `npm run test --workspace backend`.
+- Ampliar la [integración con PostgreSQL](docs/integracion-postgresql-2026-09-05.md) a traslados y permisos y añadir pruebas E2E.
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.

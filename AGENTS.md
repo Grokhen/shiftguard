@@ -41,6 +41,8 @@ cd apps/backend
 npm run dev
 npm run build
 npm run test
+npm run typecheck:integration
+npm run test:integration
 npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:seed
@@ -79,6 +81,7 @@ Segun el cambio, ejecutar:
 
 - Backend: `npm run build`.
 - Tests backend: `cd apps/backend && npm run test` o `npm run test --workspace backend`.
+- Integracion PostgreSQL: `npm run typecheck:integration --workspace backend` y `npm run test:integration --workspace backend`. El segundo exige `TEST_DATABASE_URL` explicita hacia una base local `shiftguard_test`; crea y elimina solo un esquema aleatorio de esa base. Consultar `docs/integracion-postgresql-2026-09-05.md`. Nunca sustituirla por la URL de desarrollo ni usar `migrate reset` para preparar estas pruebas.
 - Frontend: `npm run lint` y `npm run build`.
 - Si se toca Prisma: `npm run prisma:generate` y revisar migraciones.
 - Si se toca seguridad/autorizacion: anadir o actualizar tests antes de cerrar.

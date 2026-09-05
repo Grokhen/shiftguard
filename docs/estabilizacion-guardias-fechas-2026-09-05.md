@@ -2,6 +2,8 @@
 
 Las guardias representan instantes con hora. La validación anterior usaba `Date.parse`, que aceptaba entradas sin zona horaria y normalizaba algunos días inexistentes. Los filtros `desde` y `hasta` solo comprobaban el inicio de la guardia, de modo que omitían guardias que ya habían empezado y seguían dentro del rango solicitado.
 
+La tanda posterior añade [integración con PostgreSQL real](integracion-postgresql-2026-09-05.md). Este documento conserva la verificación y los pendientes de la tanda de fechas.
+
 ## Cambios
 
 - El alta, la edición y los filtros de guardias exigen fecha y hora ISO válidas con `Z` o un desplazamiento explícito `±HH:MM`. Se aceptan minutos, segundos y fracciones de hasta tres decimales; se rechaza precisión superior para evitar truncarla al convertirla a `Date`. Los años deben estar entre 1 y 9999 tanto en la entrada como tras convertir a UTC.

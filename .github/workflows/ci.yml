@@ -7,11 +7,27 @@ on:
   push:
     branches:
       - main
+      - 'codex/**'
 
 jobs:
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shiftguard_test
+          POSTGRES_PASSWORD: integration_only
+          POSTGRES_DB: shiftguard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shiftguard_test -d shiftguard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout
@@ -31,6 +47,14 @@ jobs:
 
       - name: Test backend
         run: npm run test --workspace backend
+
+      - name: Typecheck PostgreSQL integration tests
+        run: npm run typecheck:integration --workspace backend
+
+      - name: Test PostgreSQL integration
+        run: npm run test:integration --workspace backend
+        env:
+          TEST_DATABASE_URL: postgresql://shiftguard_test:integration_only@127.0.0.1:5432/shiftguard_test
 
       - name: Build backend
         run: npm run build:backend
