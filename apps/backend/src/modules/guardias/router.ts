@@ -3,6 +3,8 @@ import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
+import { serializableTransaction } from '../../utils/transaction'
+import { httpError } from '../../utils/httpError'
 import {
   ensureSupervisorOrAdmin,
   getUserRoleCodigo,
@@ -77,6 +79,7 @@ const usuarioSeguroSelect = {
 type AsignacionGuardiaInput = z.infer<typeof asignacionGuardiaInputSchema>
 
 async function validarAsignacionesGuardia(
+  tx: Prisma.TransactionClient,
   delegacionId: number,
   asignaciones: AsignacionGuardiaInput[],
 ) {
@@ -99,9 +102,9 @@ async function validarAsignacionesGuardia(
     return
   }
 
-  const usuarios = await prisma.usuario.findMany({
+  const usuarios = await tx.usuario.findMany({
     where: { id: { in: usuarioIds } },
-    select: { id: true, delegacion_id: true },
+    select: { id: true, delegacion_id: true, activo: true },
   })
 
   if (usuarios.length !== usuarioIds.length) {
@@ -121,7 +124,11 @@ async function validarAsignacionesGuardia(
     throw err
   }
 
-  const roles = await prisma.rolGuardia.findMany({
+  if (usuarios.some((usuario) => !usuario.activo)) {
+    throw httpError('No se pueden asignar usuarios inactivos a una guardia', 400)
+  }
+
+  const roles = await tx.rolGuardia.findMany({
     where: { id: { in: rolGuardiaIds } },
     select: { id: true },
   })
@@ -254,6 +261,7 @@ router.get('/:id', async (req, res, next) => {
       include: {
         Delegacion: true,
         Asignaciones: {
+          where: isAdmin ? {} : { Usuario: { delegacion_id: user.deleg } },
           include: {
             Usuario: {
               select: usuarioSeguroSelect,
@@ -292,18 +300,17 @@ router.post('/', async (req, res, next) => {
     const fin = new Date(dto.fecha_fin)
     const asignaciones = dto.asignaciones ?? []
 
-    const overlap = await prisma.guardia.findFirst({
-      where: {
-        delegacion_id: user.deleg,
-        AND: [{ fecha_inicio: { lt: fin } }, { fecha_fin: { gt: ini } }],
-      },
-    })
-    if (overlap)
-      return res.status(400).json({ error: 'Ya existe una guardia solapada en esta delegación' })
+    const created = await serializableTransaction(async (tx) => {
+      const overlap = await tx.guardia.findFirst({
+        where: {
+          delegacion_id: user.deleg,
+          AND: [{ fecha_inicio: { lt: fin } }, { fecha_fin: { gt: ini } }],
+        },
+      })
+      if (overlap) throw httpError('Ya existe una guardia solapada en esta delegación', 400)
 
-    await validarAsignacionesGuardia(user.deleg, asignaciones)
+      await validarAsignacionesGuardia(tx, user.deleg, asignaciones)
 
-    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const guardia = await tx.guardia.create({
         data: {
           delegacion_id: user.deleg,
@@ -332,6 +339,7 @@ router.post('/', async (req, res, next) => {
       include: {
         Delegacion: true,
         Asignaciones: {
+          where: user.roleCode === 'ADMIN' ? {} : { Usuario: { delegacion_id: user.deleg } },
           include: {
             Usuario: {
               select: usuarioSeguroSelect,
@@ -360,44 +368,51 @@ router.patch('/:id', async (req, res, next) => {
     await ensureSupervisorOrAdmin(user)
     const dto = actualizarGuardiaSchema.parse(req.body)
 
-    const guardia = await prisma.guardia.findUnique({
-      where: { id: guardiaId },
-    })
-
-    if (!guardia) {
-      return res.status(404).json({ error: 'Guardia no encontrada' })
-    }
-
-    const rolCodigo = await getUserRoleCodigo(user)
-    const isAdmin = isAdminCodigo(rolCodigo)
-
-    if (!isAdmin && guardia.delegacion_id !== user.deleg) {
-      return res.status(403).json({ error: 'No puedes modificar guardias de otra delegación' })
-    }
-
-    const nuevaFechaInicio = dto.fecha_inicio ? new Date(dto.fecha_inicio) : guardia.fecha_inicio
-    const nuevaFechaFin = dto.fecha_fin ? new Date(dto.fecha_fin) : guardia.fecha_fin
-
-    const overlap = await prisma.guardia.findFirst({
-      where: {
-        delegacion_id: guardia.delegacion_id,
-        id: { not: guardiaId },
-        AND: [{ fecha_inicio: { lt: nuevaFechaFin } }, { fecha_fin: { gt: nuevaFechaInicio } }],
-      },
-    })
-
-    if (overlap) {
-      return res.status(400).json({
-        error: 'Las nuevas fechas solapan con otra guardia de esta delegación',
+    await serializableTransaction(async (tx) => {
+      const guardia = await tx.guardia.findUnique({
+        where: { id: guardiaId },
+        include: { Asignaciones: true },
       })
-    }
 
-    if (dto.asignaciones) {
-      const asignaciones = dto.asignaciones
+      if (!guardia) {
+        throw httpError('Guardia no encontrada', 404)
+      }
 
-      await validarAsignacionesGuardia(guardia.delegacion_id, asignaciones)
+      const rolCodigo = await getUserRoleCodigo(user)
+      const isAdmin = isAdminCodigo(rolCodigo)
 
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      if (!isAdmin && guardia.delegacion_id !== user.deleg) {
+        throw httpError('No puedes modificar guardias de otra delegación', 403)
+      }
+
+      const nuevaFechaInicio = dto.fecha_inicio ? new Date(dto.fecha_inicio) : guardia.fecha_inicio
+      const nuevaFechaFin = dto.fecha_fin ? new Date(dto.fecha_fin) : guardia.fecha_fin
+
+      if (nuevaFechaFin <= nuevaFechaInicio) throw httpError('fecha_fin > fecha_inicio', 400)
+
+      const overlap = await tx.guardia.findFirst({
+        where: {
+          delegacion_id: guardia.delegacion_id,
+          id: { not: guardiaId },
+          AND: [{ fecha_inicio: { lt: nuevaFechaFin } }, { fecha_fin: { gt: nuevaFechaInicio } }],
+        },
+      })
+
+      if (overlap) {
+        throw httpError('Las nuevas fechas solapan con otra guardia de esta delegación', 400)
+      }
+
+      if (dto.asignaciones || dto.fecha_inicio || dto.fecha_fin) {
+        await validarAsignacionesGuardia(
+          tx,
+          guardia.delegacion_id,
+          dto.asignaciones ?? guardia.Asignaciones,
+        )
+      }
+
+      if (dto.asignaciones) {
+        const asignaciones = dto.asignaciones
+
         await tx.guardia.update({
           where: { id: guardiaId },
           data: {
@@ -420,23 +435,24 @@ router.patch('/:id', async (req, res, next) => {
             })),
           })
         }
-      })
-    } else {
-      await prisma.guardia.update({
-        where: { id: guardiaId },
-        data: {
-          fecha_inicio: nuevaFechaInicio,
-          fecha_fin: nuevaFechaFin,
-          estado: dto.estado ?? guardia.estado,
-        },
-      })
-    }
+      } else {
+        await tx.guardia.update({
+          where: { id: guardiaId },
+          data: {
+            fecha_inicio: nuevaFechaInicio,
+            fecha_fin: nuevaFechaFin,
+            estado: dto.estado ?? guardia.estado,
+          },
+        })
+      }
+    })
 
     const guardiaActualizada = await prisma.guardia.findUnique({
       where: { id: guardiaId },
       include: {
         Delegacion: true,
         Asignaciones: {
+          where: user.roleCode === 'ADMIN' ? {} : { Usuario: { delegacion_id: user.deleg } },
           include: {
             Usuario: {
               select: usuarioSeguroSelect,
@@ -471,55 +487,34 @@ router.post('/:id/asignaciones', async (req, res, next) => {
 
     const dto = asignacionGuardiaSchema.parse(req.body)
 
-    const guardia = await prisma.guardia.findUnique({
-      where: { id: guardiaId },
-    })
-
-    if (!guardia) {
-      return res.status(404).json({ error: 'Guardia no encontrada' })
-    }
-
-    if (!isAdmin && guardia.delegacion_id !== user.deleg) {
-      return res.status(403).json({ error: 'No puedes modificar guardias de otra delegación' })
-    }
-
-    const usuario = await prisma.usuario.findUnique({
-      where: { id: dto.usuario_id },
-      select: { id: true, delegacion_id: true },
-    })
-
-    if (!usuario) {
-      return res.status(400).json({ error: `Usuario no encontrado: ${dto.usuario_id}` })
-    }
-
-    if (usuario.delegacion_id !== guardia.delegacion_id) {
-      return res.status(400).json({
-        error: 'El usuario y la guardia deben pertenecer a la misma delegación',
+    const asignacion = await serializableTransaction(async (tx) => {
+      const guardia = await tx.guardia.findUnique({
+        where: { id: guardiaId },
       })
-    }
 
-    const rolGuardia = await prisma.rolGuardia.findUnique({
-      where: { id: dto.rol_guardia_id },
-    })
+      if (!guardia) {
+        throw httpError('Guardia no encontrada', 404)
+      }
 
-    if (!rolGuardia) {
-      return res.status(400).json({
-        error: `Rol de guardia no válido: ${dto.rol_guardia_id}`,
-      })
-    }
+      if (!isAdmin && guardia.delegacion_id !== user.deleg) {
+        throw httpError('No puedes modificar guardias de otra delegación', 403)
+      }
 
-    const asignacion = await prisma.asignacionGuardia.create({
-      data: {
-        guardia_id: guardia.id,
-        usuario_id: dto.usuario_id,
-        rol_guardia_id: dto.rol_guardia_id,
-      },
-      include: {
-        Usuario: {
-          select: usuarioSeguroSelect,
+      await validarAsignacionesGuardia(tx, guardia.delegacion_id, [dto])
+
+      return tx.asignacionGuardia.create({
+        data: {
+          guardia_id: guardia.id,
+          usuario_id: dto.usuario_id,
+          rol_guardia_id: dto.rol_guardia_id,
         },
-        RolGuardia: true,
-      },
+        include: {
+          Usuario: {
+            select: usuarioSeguroSelect,
+          },
+          RolGuardia: true,
+        },
+      })
     })
 
     res.status(201).json(asignacion)

@@ -5,6 +5,8 @@ import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
 import { ENV } from '../../config/env'
 import { ensureAdmin, type AuthUser } from '../../utils/authz'
+import { serializableTransaction } from '../../utils/transaction'
+import { httpError } from '../../utils/httpError'
 
 const router = Router()
 
@@ -177,6 +179,7 @@ router.patch('/me/password', async (req, res, next) => {
       select: {
         id: true,
         password_hash: true,
+        password_actualizada_en: true,
       },
     })
 
@@ -191,14 +194,19 @@ router.patch('/me/password', async (req, res, next) => {
 
     const nuevoHash = await argon2.hash(dto.password_nueva + ENV.AUTH_PEPPER)
 
-    await prisma.usuario.update({
-      where: { id: authUser.sub },
+    const changed = await prisma.usuario.updateMany({
+      where: { id: authUser.sub, password_hash: usuario.password_hash },
       data: {
         password_hash: nuevoHash,
-        password_actualizada_en: new Date(),
+        password_actualizada_en: new Date(
+          Math.max(Date.now(), (usuario.password_actualizada_en?.getTime() ?? 0) + 1),
+        ),
         requiere_reset: false,
       },
     })
+
+    if (changed.count !== 1)
+      throw httpError('La contraseña ha cambiado. Inicia sesión de nuevo.', 409)
 
     res.status(204).send()
   } catch (e) {
@@ -218,18 +226,56 @@ router.patch('/:id', async (req, res, next) => {
 
     const dto = editarUsuarioSchema.parse(req.body)
 
-    const data: any = { ...dto }
+    const { password, ...changes } = dto
+    // Keep password hashing outside the transaction/retry loop.
+    const hash = password ? await argon2.hash(password + ENV.AUTH_PEPPER) : undefined
 
-    if (dto.password) {
-      data.password_hash = await argon2.hash(dto.password + ENV.AUTH_PEPPER)
-      data.requiere_reset = false
-      delete data.password
-    }
+    const usuario = await serializableTransaction(async (tx) => {
+      const current = await tx.usuario.findUnique({ where: { id: usuarioId } })
+      if (!current) throw httpError('Usuario no encontrado', 404)
 
-    const usuario = await prisma.usuario.update({
-      where: { id: usuarioId },
-      data,
-      select: usuarioSeguroSelect,
+      if (dto.rol_id !== undefined) {
+        const rol = await tx.rolUsuario.findUnique({ where: { id: dto.rol_id } })
+        if (!rol) throw httpError('Rol no encontrado', 400)
+      }
+
+      if (dto.delegacion_id !== undefined && dto.delegacion_id !== current.delegacion_id) {
+        const delegacion = await tx.delegacion.findUnique({ where: { id: dto.delegacion_id } })
+        if (!delegacion) throw httpError('Delegación no encontrada', 400)
+
+        const miembro = await tx.miembroEquipo.findFirst({
+          where: { usuario_id: usuarioId, Equipo: { delegacion_id: { not: dto.delegacion_id } } },
+        })
+        const asignacion = await tx.asignacionGuardia.findFirst({
+          where: {
+            usuario_id: usuarioId,
+            Guardia: { delegacion_id: { not: dto.delegacion_id }, fecha_fin: { gt: new Date() } },
+          },
+        })
+        if (miembro || asignacion) {
+          throw httpError(
+            'Retira al usuario de sus equipos y guardias vigentes o futuras antes de cambiar de delegación.',
+            409,
+          )
+        }
+      }
+
+      return tx.usuario.update({
+        where: { id: usuarioId },
+        data: {
+          ...changes,
+          ...(hash
+            ? {
+                password_hash: hash,
+                password_actualizada_en: new Date(
+                  Math.max(Date.now(), (current.password_actualizada_en?.getTime() ?? 0) + 1),
+                ),
+                requiere_reset: false,
+              }
+            : {}),
+        },
+        select: usuarioSeguroSelect,
+      })
     })
 
     res.json(usuario)

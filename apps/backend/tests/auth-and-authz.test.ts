@@ -1,10 +1,13 @@
 import request from 'supertest'
 import * as jwt from 'jsonwebtoken'
+import { Prisma } from '@prisma/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/app'
 
 const prismaMock = vi.hoisted(() => ({
   usuario: {
+    findFirst: vi.fn(),
+    updateMany: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
     findMany: vi.fn(),
@@ -35,11 +38,13 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
   },
   miembroEquipo: {
+    findFirst: vi.fn(),
     findMany: vi.fn(),
     create: vi.fn(),
     delete: vi.fn(),
   },
   asignacionGuardia: {
+    findFirst: vi.fn(),
     findMany: vi.fn(),
     create: vi.fn(),
     createMany: vi.fn(),
@@ -86,13 +91,21 @@ const roles = {
   admin: { id: 3, codigo: 'ADMIN', nombre: 'Administrador' },
 }
 
-function signToken(role: (typeof roles)[keyof typeof roles], deleg = 1, sub = 10) {
+function authenticateAs(role: (typeof roles)[keyof typeof roles], deleg = 1, sub = 10) {
+  prismaMock.usuario.findFirst.mockResolvedValue({
+    id: sub,
+    rol_id: role.id,
+    delegacion_id: deleg,
+    password_actualizada_en: null,
+    Rol: { codigo: role.codigo },
+  })
   return jwt.sign(
     {
       sub,
       role: role.id,
       roleCode: role.codigo,
       deleg,
+      passwordVersion: 0,
     },
     process.env.JWT_SECRET!,
     { expiresIn: '15m' },
@@ -100,9 +113,8 @@ function signToken(role: (typeof roles)[keyof typeof roles], deleg = 1, sub = 10
 }
 
 function mockRoleLookup() {
-  prismaMock.rolUsuario.findUnique.mockImplementation(
-    ({ where }: { where: { id: number } }) =>
-      Promise.resolve(Object.values(roles).find((role) => role.id === where.id) ?? null),
+  prismaMock.rolUsuario.findUnique.mockImplementation(({ where }: { where: { id: number } }) =>
+    Promise.resolve(Object.values(roles).find((role) => role.id === where.id) ?? null),
   )
 }
 
@@ -110,10 +122,459 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => undefined)
   mockRoleLookup()
+  prismaMock.$transaction.mockImplementation((work) => work(prismaMock))
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+})
+
+describe('audit regressions: session authorization', () => {
+  it('checks active and unblocked account state on every authenticated request', async () => {
+    const token = authenticateAs(roles.admin)
+    prismaMock.usuario.findMany.mockResolvedValue([])
+    await request(app).get('/api/usuarios').set('Authorization', `Bearer ${token}`).expect(200)
+    expect(prismaMock.usuario.findFirst).toHaveBeenCalledWith({
+      where: { id: 10, activo: true, bloqueado_en: null },
+      select: {
+        id: true,
+        rol_id: true,
+        delegacion_id: true,
+        password_actualizada_en: true,
+        Rol: { select: { codigo: true } },
+      },
+    })
+
+    // A missing, disabled or blocked account no longer matches that lookup.
+    prismaMock.usuario.findFirst.mockResolvedValue(null)
+    await request(app).get('/api/usuarios').set('Authorization', `Bearer ${token}`).expect(401)
+    expect(prismaMock.usuario.findMany).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    { rol_id: roles.tecnico.id },
+    { Rol: { codigo: 'TECNICO' } },
+    { delegacion_id: 2 },
+    { password_actualizada_en: new Date() },
+  ])('invalidates issued tokens after account changes: %j', async (change) => {
+    const token = authenticateAs(roles.admin)
+    prismaMock.usuario.findFirst.mockResolvedValue({
+      id: 10,
+      rol_id: roles.admin.id,
+      delegacion_id: 1,
+      Rol: { codigo: 'ADMIN' },
+      password_actualizada_en: null,
+      ...change,
+    })
+    await request(app).get('/api/usuarios').set('Authorization', `Bearer ${token}`).expect(401)
+    expect(prismaMock.usuario.findMany).not.toHaveBeenCalled()
+  })
+
+  it.each(['expired', 'no-expiry', 'legacy', 'invalid-sub'])(
+    'rejects %s tokens before querying data',
+    async (kind) => {
+      const payload: Record<string, unknown> = {
+        sub: 10,
+        role: 3,
+        roleCode: 'ADMIN',
+        deleg: 1,
+        passwordVersion: 0,
+        exp: Math.floor(Date.now() / 1000) + 900,
+      }
+      if (kind === 'expired') payload.exp = 1
+      if (kind === 'no-expiry') delete payload.exp
+      if (kind === 'legacy') delete payload.passwordVersion
+      if (kind === 'invalid-sub') payload.sub = 1.5
+      const token = jwt.sign(payload, process.env.JWT_SECRET!)
+      await request(app).get('/api/usuarios').set('Authorization', `Bearer ${token}`).expect(401)
+      expect(prismaMock.usuario.findFirst).not.toHaveBeenCalled()
+    },
+  )
+
+  it('reports a database failure as a server error without reflecting internals', async () => {
+    const token = authenticateAs(roles.admin)
+    prismaMock.usuario.findFirst.mockRejectedValue(new Error('private database details'))
+    const res = await request(app)
+      .get('/api/usuarios')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(500)
+    expect(res.body).toEqual({ error: 'Error interno del servidor' })
+  })
+
+  it('revokes the old token after changing a password and accepts a fresh login in the same second', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-05T12:00:00.123Z'))
+    const token = authenticateAs(roles.tecnico)
+    const account = {
+      id: 10,
+      rol_id: 1,
+      delegacion_id: 1,
+      Rol: { codigo: 'TECNICO' },
+      activo: true,
+      bloqueado_en: null,
+      password_actualizada_en: null as Date | null,
+      password_hash: 'old-hash',
+    }
+    prismaMock.usuario.findFirst.mockImplementation(async () => account)
+    prismaMock.usuario.findUnique.mockImplementation(async () => account)
+    argon2Mock.verify.mockResolvedValue(true)
+    argon2Mock.hash.mockResolvedValue('new-hash')
+    prismaMock.usuario.updateMany.mockImplementation(async ({ data }) => {
+      Object.assign(account, data)
+      return { count: 1 }
+    })
+
+    await request(app)
+      .patch('/api/usuarios/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password_actual: 'old-password', password_nueva: 'new-password' })
+      .expect(204)
+    expect(prismaMock.usuario.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 10, password_hash: 'old-hash' },
+      }),
+    )
+    await request(app)
+      .get('/api/guardias/roles')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401)
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'user@example.com', password: 'new-password' })
+      .expect(200)
+    const decoded = jwt.verify(login.body.access_token, process.env.JWT_SECRET!) as jwt.JwtPayload
+    expect(decoded.passwordVersion).toBe(Date.parse('2026-09-05T12:00:00.123Z'))
+    prismaMock.rolGuardia.findMany.mockResolvedValue([])
+    await request(app)
+      .get('/api/guardias/roles')
+      .set('Authorization', `Bearer ${login.body.access_token}`)
+      .expect(200)
+  })
+
+  it('does not overwrite a password changed by a concurrent request', async () => {
+    const token = authenticateAs(roles.tecnico)
+    prismaMock.usuario.findUnique.mockResolvedValue({ id: 10, password_hash: 'old-hash' })
+    argon2Mock.verify.mockResolvedValue(true)
+    argon2Mock.hash.mockResolvedValue('new-hash')
+    prismaMock.usuario.updateMany.mockResolvedValue({ count: 0 })
+    await request(app)
+      .patch('/api/usuarios/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password_actual: 'old-password', password_nueva: 'new-password' })
+      .expect(409)
+  })
+
+  it('updates the password version on an administrative reset', async () => {
+    const token = authenticateAs(roles.admin)
+    prismaMock.usuario.findUnique.mockResolvedValue({
+      id: 20,
+      delegacion_id: 1,
+      password_actualizada_en: null,
+    })
+    prismaMock.usuario.update.mockResolvedValue({ id: 20 })
+    argon2Mock.hash.mockResolvedValue('new-hash')
+    await request(app)
+      .patch('/api/usuarios/20')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ password: 'new-password' })
+      .expect(200)
+    expect(prismaMock.usuario.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          password_hash: 'new-hash',
+          password_actualizada_en: expect.any(Date),
+        }),
+      }),
+    )
+    expect(prismaMock.usuario.update.mock.calls[0][0].data).not.toHaveProperty('password')
+  })
+})
+
+describe('audit regressions: delegation transfers', () => {
+  beforeEach(() => {
+    prismaMock.usuario.findUnique.mockResolvedValue({ id: 20, delegacion_id: 1 })
+    prismaMock.equipo.findUnique.mockResolvedValue({ id: 1, delegacion_id: 1 })
+    prismaMock.delegacion.findUnique.mockResolvedValue({ id: 2 })
+    prismaMock.miembroEquipo.findFirst.mockResolvedValue(null)
+    prismaMock.asignacionGuardia.findFirst.mockResolvedValue(null)
+  })
+
+  it('rejects a team transfer that would keep members in another delegation', async () => {
+    prismaMock.miembroEquipo.findFirst.mockResolvedValue({ usuario_id: 20 })
+    await request(app)
+      .patch('/api/equipos/1')
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
+      .send({ delegacion_id: 2 })
+      .expect(409)
+    expect(prismaMock.equipo.update).not.toHaveBeenCalled()
+    expect(prismaMock.miembroEquipo.findFirst).toHaveBeenCalledWith({
+      where: { equipo_id: 1, Usuario: { delegacion_id: { not: 2 } } },
+    })
+  })
+
+  it('allows transferring an empty team in a serializable transaction', async () => {
+    prismaMock.equipo.update.mockResolvedValue({ id: 1, delegacion_id: 2 })
+    await request(app)
+      .patch('/api/equipos/1')
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
+      .send({ delegacion_id: 2 })
+      .expect(200)
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+    })
+  })
+
+  it.each(['team', 'shift'])(
+    'rejects a user transfer with an incompatible %s',
+    async (relation) => {
+      if (relation === 'team')
+        prismaMock.miembroEquipo.findFirst.mockResolvedValue({ equipo_id: 1 })
+      else prismaMock.asignacionGuardia.findFirst.mockResolvedValue({ guardia_id: 1 })
+      await request(app)
+        .patch('/api/usuarios/20')
+        .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
+        .send({ delegacion_id: 2 })
+        .expect(409)
+      expect(prismaMock.usuario.update).not.toHaveBeenCalled()
+      expect(prismaMock.asignacionGuardia.findFirst).toHaveBeenCalledWith({
+        where: {
+          usuario_id: 20,
+          Guardia: { delegacion_id: { not: 2 }, fecha_fin: { gt: expect.any(Date) } },
+        },
+      })
+    },
+  )
+
+  it('allows a user transfer without incompatible teams or current/future shifts', async () => {
+    prismaMock.usuario.update.mockResolvedValue({ id: 20, delegacion_id: 2 })
+    await request(app)
+      .patch('/api/usuarios/20')
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
+      .send({ delegacion_id: 2 })
+      .expect(200)
+  })
+
+  it.each(['/api/usuarios/20', '/api/equipos/1'])(
+    'rejects transfers to an unknown delegation: %s',
+    async (path) => {
+      prismaMock.delegacion.findUnique.mockResolvedValue(null)
+      await request(app)
+        .patch(path)
+        .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
+        .send({ delegacion_id: 99 })
+        .expect(400)
+      expect(prismaMock.usuario.update).not.toHaveBeenCalled()
+      expect(prismaMock.equipo.update).not.toHaveBeenCalled()
+    },
+  )
+
+  it('hides existing inconsistent members from a supervisor while allowing an admin to repair them', async () => {
+    prismaMock.equipo.findUnique.mockResolvedValue({
+      id: 1,
+      delegacion_id: 1,
+      Miembros: [
+        { usuario_id: 20, Usuario: { id: 20, delegacion_id: 1 } },
+        { usuario_id: 21, Usuario: { id: 21, delegacion_id: 2 } },
+      ],
+    })
+    const res = await request(app)
+      .get('/api/equipos/1')
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
+      .expect(200)
+    expect(res.body.Miembros.map((m: { usuario_id: number }) => m.usuario_id)).toEqual([20])
+    const admin = await request(app)
+      .get('/api/equipos/1')
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
+      .expect(200)
+    expect(admin.body.Miembros).toHaveLength(2)
+  })
+})
+
+function prismaError(code: string) {
+  return new Prisma.PrismaClientKnownRequestError('private database details', {
+    code,
+    clientVersion: '6.19.0',
+  })
+}
+
+describe('audit regressions: shift integrity and transaction retries', () => {
+  const shift = {
+    id: 1,
+    delegacion_id: 1,
+    fecha_inicio: new Date('2026-09-05T08:00:00Z'),
+    fecha_fin: new Date('2026-09-05T16:00:00Z'),
+    estado: 'PLANIFICADA',
+    Asignaciones: [],
+  }
+  beforeEach(() => {
+    prismaMock.guardia.findUnique.mockResolvedValue(shift)
+    prismaMock.guardia.findFirst.mockResolvedValue(null)
+    prismaMock.guardia.create.mockResolvedValue(shift)
+  })
+
+  it.each([
+    { fecha_inicio: '2026-09-06T08:00:00Z' },
+    { fecha_fin: '2026-09-04T16:00:00Z' },
+    { fecha_inicio: '2026-09-05T16:00:00Z' },
+    { fecha_fin: '2026-09-05T08:00:00Z' },
+  ])('rejects an invalid resulting interval from a partial patch: %j', async (body) => {
+    await request(app)
+      .patch('/api/guardias/1')
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
+      .send(body)
+      .expect(400)
+    expect(prismaMock.guardia.update).not.toHaveBeenCalled()
+    expect(prismaMock.asignacionGuardia.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('accepts a valid partial date update', async () => {
+    await request(app)
+      .patch('/api/guardias/1')
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
+      .send({ fecha_fin: '2026-09-05T18:00:00Z' })
+      .expect(200)
+    expect(prismaMock.guardia.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: {
+        fecha_inicio: shift.fecha_inicio,
+        fecha_fin: new Date('2026-09-05T18:00:00Z'),
+        estado: 'PLANIFICADA',
+      },
+    })
+  })
+
+  it.each(['create', 'patch', 'assignment'])(
+    'rejects inactive assignees on %s',
+    async (operation) => {
+      prismaMock.usuario.findMany.mockResolvedValue([{ id: 20, delegacion_id: 1, activo: false }])
+      const token = authenticateAs(roles.supervisor)
+      const assignment = { usuario_id: 20, rol_guardia_id: 1 }
+      const req =
+        operation === 'patch'
+          ? request(app).patch('/api/guardias/1')
+          : request(app).post(
+              operation === 'create' ? '/api/guardias' : '/api/guardias/1/asignaciones',
+            )
+      const body =
+        operation === 'assignment'
+          ? assignment
+          : {
+              fecha_inicio: shift.fecha_inicio.toISOString(),
+              fecha_fin: shift.fecha_fin.toISOString(),
+              asignaciones: [assignment],
+            }
+      await req.set('Authorization', `Bearer ${token}`).send(body).expect(400)
+      expect(prismaMock.guardia.create).not.toHaveBeenCalled()
+      expect(prismaMock.guardia.update).not.toHaveBeenCalled()
+      expect(prismaMock.asignacionGuardia.create).not.toHaveBeenCalled()
+    },
+  )
+
+  it('revalidates existing assignees when rescheduling a historical shift', async () => {
+    prismaMock.guardia.findUnique.mockResolvedValue({
+      ...shift,
+      Asignaciones: [{ usuario_id: 20, rol_guardia_id: 1 }],
+    })
+    prismaMock.usuario.findMany.mockResolvedValue([{ id: 20, delegacion_id: 2, activo: true }])
+    await request(app)
+      .patch('/api/guardias/1')
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
+      .send({ fecha_fin: '2027-01-01T08:00:00Z' })
+      .expect(400)
+    expect(prismaMock.guardia.update).not.toHaveBeenCalled()
+  })
+
+  it('rechecks overlaps after a commit serialization failure', async () => {
+    prismaMock.guardia.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 2 })
+    prismaMock.$transaction.mockImplementationOnce(async (work) => {
+      await work(prismaMock)
+      throw prismaError('P2034')
+    })
+    await request(app)
+      .post('/api/guardias')
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
+      .send({
+        fecha_inicio: shift.fecha_inicio.toISOString(),
+        fecha_fin: shift.fecha_fin.toISOString(),
+      })
+      .expect(400)
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2)
+    expect(prismaMock.guardia.findFirst).toHaveBeenCalledTimes(2)
+    expect(prismaMock.guardia.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns a conflict after three serialization failures', async () => {
+    prismaMock.$transaction.mockRejectedValue(prismaError('P2034'))
+    await request(app)
+      .post('/api/guardias')
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
+      .send({
+        fecha_inicio: shift.fecha_inicio.toISOString(),
+        fecha_fin: shift.fecha_fin.toISOString(),
+      })
+      .expect(409)
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not retry unrelated database errors or expose their internal messages', async () => {
+    prismaMock.$transaction.mockRejectedValue(prismaError('P2002'))
+    const res = await request(app)
+      .post('/api/guardias')
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
+      .send({
+        fecha_inicio: shift.fecha_inicio.toISOString(),
+        fecha_fin: shift.fecha_fin.toISOString(),
+      })
+      .expect(409)
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+    expect(res.body).toEqual({ error: 'El registro ya existe' })
+  })
+})
+
+describe('audit regressions: competing permission decisions', () => {
+  it('allows only one decision after two requests read the same pending state', async () => {
+    const token = authenticateAs(roles.supervisor)
+    let storedState = 1
+    let reads = 0
+    let release!: () => void
+    const bothRead = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    prismaMock.permiso.findUnique.mockImplementation(async () => {
+      if (++reads === 2) release()
+      await bothRead
+      return {
+        id: 50,
+        estado_id: 1,
+        Estado: { codigo: 'PENDIENTE' },
+        Usuario: { delegacion_id: 1 },
+      }
+    })
+    prismaMock.estadoPermiso.findUnique.mockImplementation(async ({ where }) => ({
+      id: where.id,
+      codigo: where.id === 2 ? 'APROBADO' : 'RECHAZADO',
+    }))
+    prismaMock.permiso.update.mockImplementation(async ({ where, data }) => {
+      if (where.estado_id !== storedState) throw prismaError('P2025')
+      storedState = data.estado_id
+      return { id: 50, ...data }
+    })
+    const results = await Promise.all(
+      [2, 3].map((estado_id) =>
+        request(app)
+          .patch('/api/permisos/50/decidir')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ estado_id }),
+      ),
+    )
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409])
+    expect([2, 3]).toContain(storedState)
+    expect(prismaMock.permiso.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 50, estado_id: 1, Usuario: { delegacion_id: 1 } },
+      }),
+    )
+  })
 })
 
 describe('auth login', () => {
@@ -245,7 +706,7 @@ describe('authRequired', () => {
 
     const res = await request(app)
       .get('/api/usuarios/me')
-      .set('Authorization', `Bearer ${signToken(roles.tecnico)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.tecnico)}`)
       .expect(200)
 
     expect(res.body).toMatchObject({
@@ -261,7 +722,7 @@ describe('role authorization', () => {
   it('rejects admin-only routes for non-admin users', async () => {
     const res = await request(app)
       .get('/api/usuarios')
-      .set('Authorization', `Bearer ${signToken(roles.tecnico)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.tecnico)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'Acción reservada a administradores' })
@@ -288,7 +749,7 @@ describe('role authorization', () => {
 
     const res = await request(app)
       .get('/api/usuarios')
-      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
       .expect(200)
 
     expect(res.body).toHaveLength(1)
@@ -298,7 +759,7 @@ describe('role authorization', () => {
   it('rejects supervisor-only guard routes for technicians', async () => {
     const res = await request(app)
       .get('/api/guardias/delegacion/1')
-      .set('Authorization', `Bearer ${signToken(roles.tecnico)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.tecnico)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'No tienes permisos para realizar esta acción' })
@@ -318,7 +779,7 @@ describe('role authorization', () => {
 
     const res = await request(app)
       .get('/api/guardias/delegacion/1')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1)}`)
       .expect(200)
 
     expect(res.body).toHaveLength(1)
@@ -331,7 +792,7 @@ describe('role authorization', () => {
   it('rejects supervisors listing guardias from another delegation', async () => {
     const res = await request(app)
       .get('/api/guardias/delegacion/2')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'No puedes ver guardias de otra delegación' })
@@ -343,7 +804,7 @@ describe('role authorization', () => {
 
     await request(app)
       .get('/api/guardias/delegacion/2')
-      .set('Authorization', `Bearer ${signToken(roles.admin, 1)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin, 1)}`)
       .expect(200)
 
     expect(prismaMock.guardia.findMany).toHaveBeenCalledWith({
@@ -369,8 +830,16 @@ describe('guardias', () => {
     }
     const tx = {
       guardia: {
+        findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockResolvedValue(guardiaCreada),
       },
+      usuario: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 10, delegacion_id: 1, activo: true },
+          { id: 11, delegacion_id: 1, activo: true },
+        ]),
+      },
+      rolGuardia: { findMany: vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]) },
       asignacionGuardia: {
         createMany: vi.fn().mockResolvedValue({ count: 2 }),
       },
@@ -393,7 +862,7 @@ describe('guardias', () => {
 
     const res = await request(app)
       .post('/api/guardias')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({
         fecha_inicio: '2026-06-01T08:00:00.000Z',
         fecha_fin: '2026-06-01T20:00:00.000Z',
@@ -422,6 +891,11 @@ describe('guardias', () => {
         { guardia_id: 100, usuario_id: 11, rol_guardia_id: 2 },
       ],
     })
+    expect(prismaMock.guardia.findFirst).not.toHaveBeenCalled()
+    expect(prismaMock.usuario.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+    })
   })
 
   it('rejects overlapping guardias in the same delegation', async () => {
@@ -432,7 +906,7 @@ describe('guardias', () => {
 
     const res = await request(app)
       .post('/api/guardias')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({
         fecha_inicio: '2026-06-01T08:00:00.000Z',
         fecha_fin: '2026-06-01T20:00:00.000Z',
@@ -440,7 +914,7 @@ describe('guardias', () => {
       .expect(400)
 
     expect(res.body).toEqual({ error: 'Ya existe una guardia solapada en esta delegación' })
-    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(prismaMock.guardia.create).not.toHaveBeenCalled()
   })
 
   it('rejects assignments for users from another delegation', async () => {
@@ -449,7 +923,7 @@ describe('guardias', () => {
 
     const res = await request(app)
       .post('/api/guardias')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({
         fecha_inicio: '2026-06-01T08:00:00.000Z',
         fecha_fin: '2026-06-01T20:00:00.000Z',
@@ -460,7 +934,7 @@ describe('guardias', () => {
     expect(res.body).toEqual({
       error: 'Todos los usuarios asignados deben pertenecer a la misma delegación que la guardia',
     })
-    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(prismaMock.guardia.create).not.toHaveBeenCalled()
   })
 
   it('rejects duplicated guard roles in a guardia', async () => {
@@ -468,7 +942,7 @@ describe('guardias', () => {
 
     const res = await request(app)
       .post('/api/guardias')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({
         fecha_inicio: '2026-06-01T08:00:00.000Z',
         fecha_fin: '2026-06-01T20:00:00.000Z',
@@ -481,7 +955,7 @@ describe('guardias', () => {
 
     expect(res.body).toEqual({ error: 'No se puede repetir un rol de guardia en la misma guardia' })
     expect(prismaMock.usuario.findMany).not.toHaveBeenCalled()
-    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(prismaMock.guardia.create).not.toHaveBeenCalled()
   })
 })
 
@@ -511,7 +985,7 @@ describe('permisos', () => {
 
     const res = await request(app)
       .post('/api/permisos')
-      .set('Authorization', `Bearer ${signToken(roles.tecnico, 1, 10)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.tecnico, 1, 10)}`)
       .send({
         tipo_id: 1,
         fecha_inicio: '2026-07-01',
@@ -576,7 +1050,7 @@ describe('permisos', () => {
 
     const res = await request(app)
       .patch('/api/permisos/50/decidir')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({
         estado_id: 2,
         observaciones: 'Aprobado',
@@ -592,7 +1066,7 @@ describe('permisos', () => {
       },
     })
     expect(prismaMock.permiso.update).toHaveBeenCalledWith({
-      where: { id: 50 },
+      where: { id: 50, estado_id: 1, Usuario: { delegacion_id: 1 } },
       data: {
         estado_id: 2,
         decidido_por: 20,
@@ -618,7 +1092,7 @@ describe('permisos', () => {
 
     const res = await request(app)
       .patch('/api/permisos/50/decidir')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({
         estado_id: 2,
       })
@@ -634,7 +1108,7 @@ describe('admin catalog routes', () => {
   it('requires admin role to list delegaciones', async () => {
     const res = await request(app)
       .get('/api/delegaciones')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'Acción reservada a administradores' })
@@ -653,7 +1127,7 @@ describe('admin catalog routes', () => {
 
     const res = await request(app)
       .get('/api/delegaciones')
-      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
       .expect(200)
 
     expect(res.body).toHaveLength(1)
@@ -665,7 +1139,7 @@ describe('admin catalog routes', () => {
   it('requires admin role to list user roles', async () => {
     const res = await request(app)
       .get('/api/rolesUsuario')
-      .set('Authorization', `Bearer ${signToken(roles.tecnico)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.tecnico)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'Acción reservada a administradores' })
@@ -677,7 +1151,7 @@ describe('admin catalog routes', () => {
 
     const res = await request(app)
       .get('/api/rolesUsuario')
-      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
       .expect(200)
 
     expect(res.body).toHaveLength(3)
@@ -699,7 +1173,7 @@ describe('equipos', () => {
 
     const res = await request(app)
       .get('/api/equipos?delegacion_id=2')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .expect(200)
 
     expect(res.body).toHaveLength(1)
@@ -720,7 +1194,7 @@ describe('equipos', () => {
 
     const res = await request(app)
       .get('/api/equipos?delegacion_id=2')
-      .set('Authorization', `Bearer ${signToken(roles.admin, 1, 30)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin, 1, 30)}`)
       .expect(200)
 
     expect(res.body).toHaveLength(1)
@@ -740,7 +1214,7 @@ describe('equipos', () => {
 
     const res = await request(app)
       .get('/api/equipos/2')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'No puedes consultar equipos de otra delegación' })
@@ -763,7 +1237,7 @@ describe('equipos', () => {
 
     const res = await request(app)
       .post('/api/equipos/1/miembros')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({ usuario_id: 10 })
       .expect(201)
 
@@ -792,7 +1266,7 @@ describe('equipos', () => {
 
     const res = await request(app)
       .post('/api/equipos/1/miembros')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({ usuario_id: 10 })
       .expect(400)
 
@@ -816,7 +1290,7 @@ describe('admin catalog mutations', () => {
 
     const res = await request(app)
       .post('/api/delegaciones')
-      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
       .send({
         nombre: 'Barcelona',
         codigo: 'BCN',
@@ -845,7 +1319,7 @@ describe('admin catalog mutations', () => {
   it('requires admin role to update delegaciones', async () => {
     const res = await request(app)
       .patch('/api/delegaciones/2')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
       .send({ activo: false })
       .expect(403)
 
@@ -862,7 +1336,7 @@ describe('admin catalog mutations', () => {
 
     const res = await request(app)
       .patch(`/api/rolesUsuario/${roles.supervisor.id}`)
-      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
       .send({ nombre: 'Supervisor actualizado' })
       .expect(200)
 
@@ -890,7 +1364,7 @@ describe('admin catalog mutations', () => {
 
     const res = await request(app)
       .post('/api/equipos')
-      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
       .send({
         nombre_equipo: 'Nivel 1',
         delegacion_id: 1,
@@ -915,7 +1389,7 @@ describe('admin catalog mutations', () => {
 
     const res = await request(app)
       .post('/api/equipos')
-      .set('Authorization', `Bearer ${signToken(roles.admin)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.admin)}`)
       .send({
         nombre_equipo: 'Nivel 1',
         delegacion_id: 99,
@@ -929,7 +1403,7 @@ describe('admin catalog mutations', () => {
   it('requires admin role to update equipos', async () => {
     const res = await request(app)
       .patch('/api/equipos/1')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor)}`)
       .send({ nombre_equipo: 'Nivel 2' })
       .expect(403)
 
@@ -952,7 +1426,7 @@ describe('permisos edge cases', () => {
 
     const res = await request(app)
       .patch('/api/permisos/50/decidir')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({ estado_id: 2 })
       .expect(400)
 
@@ -981,7 +1455,7 @@ describe('permisos edge cases', () => {
 
     const res = await request(app)
       .patch('/api/permisos/50/decidir')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({ estado_id: 1 })
       .expect(400)
 
@@ -1005,7 +1479,7 @@ describe('permisos edge cases', () => {
 
     const res = await request(app)
       .patch('/api/permisos/50/decidir')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({ estado_id: 99 })
       .expect(400)
 
@@ -1030,7 +1504,7 @@ describe('team members and team permissions', () => {
 
     await request(app)
       .delete('/api/equipos/1/miembros/10')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .expect(204)
 
     expect(prismaMock.miembroEquipo.delete).toHaveBeenCalledWith({
@@ -1052,7 +1526,7 @@ describe('team members and team permissions', () => {
 
     const res = await request(app)
       .delete('/api/equipos/2/miembros/10')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'No puedes modificar equipos de otra delegación' })
@@ -1069,7 +1543,7 @@ describe('team members and team permissions', () => {
 
     const res = await request(app)
       .get('/api/equipos/1/permisos')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .expect(200)
 
     expect(res.body).toEqual([])
@@ -1108,13 +1582,14 @@ describe('team members and team permissions', () => {
 
     const res = await request(app)
       .get('/api/equipos/1/permisos?anio=2026')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .expect(200)
 
     expect(res.body).toHaveLength(1)
     expect(prismaMock.permiso.findMany).toHaveBeenCalledWith({
       where: {
         usuario_id: { in: [10, 11] },
+        Usuario: { delegacion_id: 1 },
         fecha_inicio: {
           gte: new Date(2026, 0, 1),
           lte: new Date(2026, 11, 31),
@@ -1147,7 +1622,7 @@ describe('team members and team permissions', () => {
 
     const res = await request(app)
       .get('/api/equipos/2/permisos')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .expect(403)
 
     expect(res.body).toEqual({ error: 'No puedes consultar equipos de otra delegación' })
@@ -1162,7 +1637,7 @@ describe('permiso request edge cases', () => {
 
     const res = await request(app)
       .post('/api/permisos')
-      .set('Authorization', `Bearer ${signToken(roles.tecnico, 1, 10)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.tecnico, 1, 10)}`)
       .send({
         tipo_id: 99,
         fecha_inicio: '2026-07-01',
@@ -1180,7 +1655,7 @@ describe('permiso request edge cases', () => {
 
     const res = await request(app)
       .patch('/api/permisos/999/decidir')
-      .set('Authorization', `Bearer ${signToken(roles.supervisor, 1, 20)}`)
+      .set('Authorization', `Bearer ${authenticateAs(roles.supervisor, 1, 20)}`)
       .send({ estado_id: 2 })
       .expect(404)
 

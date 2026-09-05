@@ -1,22 +1,11 @@
-import { prisma } from '../prisma'
+import type { AuthPayload } from '../middlewares/authRequired'
+import { httpError } from './httpError'
 
-export type AuthUser = {
-  sub: number
-  role: number
-  deleg: number
-}
-
-function httpError(message: string, statusCode: number) {
-  const err = new Error(message)
-  ;(err as any).statusCode = statusCode
-  return err
-}
+export type AuthUser = AuthPayload
 
 export async function getUserRoleCodigo(user: AuthUser): Promise<string | null> {
-  const rol = await prisma.rolUsuario.findUnique({
-    where: { id: user.role },
-  })
-  return rol?.codigo ?? null
+  // authRequired has already checked this role against the current account.
+  return user.roleCode
 }
 
 export function isAdminCodigo(codigo: string | null) {

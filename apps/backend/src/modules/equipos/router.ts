@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
+import { serializableTransaction } from '../../utils/transaction'
+import { httpError } from '../../utils/httpError'
 import {
   ensureAdmin,
   ensureSupervisorOrAdmin,
@@ -106,7 +108,10 @@ router.get('/:id', async (req, res, next) => {
       return res.status(403).json({ error: 'No puedes consultar equipos de otra delegación' })
     }
 
-    res.json(equipo)
+    res.json({
+      ...equipo,
+      Miembros: equipo.Miembros.filter((m) => isAdmin || m.Usuario.delegacion_id === user.deleg),
+    })
   } catch (e) {
     next(e)
   }
@@ -124,9 +129,25 @@ router.patch('/:id', async (req, res, next) => {
 
     const dto = editarEquipoSchema.parse(req.body)
 
-    const equipo = await prisma.equipo.update({
-      where: { id: equipoId },
-      data: dto,
+    const equipo = await serializableTransaction(async (tx) => {
+      const current = await tx.equipo.findUnique({ where: { id: equipoId } })
+      if (!current) throw httpError('Equipo no encontrado', 404)
+
+      if (dto.delegacion_id !== undefined && dto.delegacion_id !== current.delegacion_id) {
+        const delegacion = await tx.delegacion.findUnique({ where: { id: dto.delegacion_id } })
+        if (!delegacion) throw httpError('Delegación no encontrada', 400)
+        const miembro = await tx.miembroEquipo.findFirst({
+          where: { equipo_id: equipoId, Usuario: { delegacion_id: { not: dto.delegacion_id } } },
+        })
+        if (miembro) {
+          throw httpError(
+            'Retira los miembros de otra delegación antes de trasladar el equipo.',
+            409,
+          )
+        }
+      }
+
+      return tx.equipo.update({ where: { id: equipoId }, data: dto })
     })
 
     res.json(equipo)
@@ -147,39 +168,39 @@ router.post('/:id/miembros', async (req, res, next) => {
 
     const dto = miembroEquipoSchema.parse(req.body)
 
-    const equipo = await prisma.equipo.findUnique({
-      where: { id: equipoId },
-    })
-    if (!equipo) {
-      return res.status(404).json({ error: 'Equipo no encontrado' })
-    }
-
-    const rolCodigo = await getUserRoleCodigo(user)
-    const isAdmin = isAdminCodigo(rolCodigo)
-
-    if (!isAdmin && equipo.delegacion_id !== user.deleg) {
-      return res.status(403).json({ error: 'No puedes modificar equipos de otra delegación' })
-    }
-
-    const usuario = await prisma.usuario.findUnique({
-      where: { id: dto.usuario_id },
-      select: { id: true, delegacion_id: true },
-    })
-    if (!usuario) {
-      return res.status(400).json({ error: `Usuario no encontrado: ${dto.usuario_id}` })
-    }
-
-    if (usuario.delegacion_id !== equipo.delegacion_id) {
-      return res.status(400).json({
-        error: 'Usuario y equipo deben pertenecer a la misma delegación',
+    const miembro = await serializableTransaction(async (tx) => {
+      const equipo = await tx.equipo.findUnique({
+        where: { id: equipoId },
       })
-    }
+      if (!equipo) {
+        throw httpError('Equipo no encontrado', 404)
+      }
 
-    const miembro = await prisma.miembroEquipo.create({
-      data: {
-        equipo_id: equipo.id,
-        usuario_id: dto.usuario_id,
-      },
+      const rolCodigo = await getUserRoleCodigo(user)
+      const isAdmin = isAdminCodigo(rolCodigo)
+
+      if (!isAdmin && equipo.delegacion_id !== user.deleg) {
+        throw httpError('No puedes modificar equipos de otra delegación', 403)
+      }
+
+      const usuario = await tx.usuario.findUnique({
+        where: { id: dto.usuario_id },
+        select: { id: true, delegacion_id: true },
+      })
+      if (!usuario) {
+        throw httpError(`Usuario no encontrado: ${dto.usuario_id}`, 400)
+      }
+
+      if (usuario.delegacion_id !== equipo.delegacion_id) {
+        throw httpError('Usuario y equipo deben pertenecer a la misma delegación', 400)
+      }
+
+      return tx.miembroEquipo.create({
+        data: {
+          equipo_id: equipo.id,
+          usuario_id: dto.usuario_id,
+        },
+      })
     })
 
     res.status(201).json(miembro)
@@ -267,6 +288,7 @@ router.get('/:id/permisos', async (req, res, next) => {
 
     const where: any = {
       usuario_id: { in: idsUsuarios },
+      ...(!isAdmin ? { Usuario: { delegacion_id: user.deleg } } : {}),
     }
 
     if (query.anio) {

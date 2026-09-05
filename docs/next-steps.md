@@ -2,6 +2,8 @@
 
 Este documento lista las siguientes tareas sugeridas para continuar el proyecto despues del traspaso.
 
+Actualizacion del 5 de septiembre de 2026: consultar la [primera tanda de estabilizacion](C:/Users/lacro/Desktop/Proyectos/ShiftGuard/docs/estabilizacion-2026-09-05.md) para el estado de las correcciones y su verificacion. La lista siguiente conserva el contexto de trabajo anterior a la auditoria.
+
 ## Estado de partida
 
 - `main` contiene la primera PR de hardening inicial.
@@ -11,7 +13,7 @@ Este documento lista las siguientes tareas sugeridas para continuar el proyecto 
   - autorizacion compartida;
   - CORS configurable.
 - `main` tambien contiene la PR `codex/backend-tests-foundation`, con base inicial de tests backend.
-- La rama `codex/add-ci-workflow` introduce CI para PRs y pushes a `main`.
+- CI para PRs y pushes a `main` ya esta incorporada; ahora incluye generacion explicita del cliente Prisma.
 - La verificacion de tests/build backend paso correctamente.
 
 ## Prioridad 1 - Ampliar tests automatizados backend
@@ -146,7 +148,7 @@ Tareas:
 
 ## Cambios propuestos para AGENTS.md
 
-No se han aplicado todavia. Propuesta:
+Estas instrucciones ya estan incorporadas en el `AGENTS.md` actual:
 
 - Actualizar comandos para incluir scripts raiz actuales: `npm run build`, `npm run lint`, `npm run build:backend`, `npm run build:frontend`, `npm run lint:frontend`.
 - Anadir que la autorizacion compartida vive en `apps/backend/src/utils/authz.ts`.
@@ -157,10 +159,10 @@ No se han aplicado todavia. Propuesta:
 
 ## Siguiente tarea concreta
 
-Completar el flujo Git de la rama de CI y abrir PR contra `main`.
+Validar la primera tanda de estabilizacion contra PostgreSQL de test, especialmente concurrencia, traslados y rollback. La PR inicial de CI ya esta incorporada.
 
-Despues del merge:
+Despues de esa verificacion:
 
-1. Valorar tests de integracion con PostgreSQL de test.
-2. Actualizar Node local con `nvm use` y repetir builds frontend sin avisos de version.
-3. Definir siguiente bloque funcional: robustez de guardias, seguridad de sesion o auditoria.
+1. Completar seed seguro, limitacion de intentos y cambio obligatorio de password.
+2. Resolver bandeja de pendientes por delegacion y reglas de disponibilidad.
+3. Actualizar dependencias con revision y preparar tests E2E y operacion.

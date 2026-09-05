@@ -66,6 +66,7 @@ Variables requeridas según [`ENV`](apps/backend/src/config/env.ts):
 Desde `apps/backend`:
 
 ```sh
+npm run prisma:generate
 npx prisma migrate deploy
 npx prisma db seed
 ```
@@ -114,7 +115,7 @@ La respuesta incluye `access_token` para consumir el resto de endpoints.
 - Completa el formulario gestionado por [`AdminUsuarioNuevoPage`](apps/frontend/src/pages/admin/AdminUsuarioNuevoPage.tsx); la llamada se delega a [`crearUsuario`](apps/frontend/src/services/usuariosService.ts).
 
 ### 3. Planificar guardia (Supervisor)
-- El formulario “Crear nueva guardia” en [`SupervisorDashboard`](apps/frontend/src/pages/SupervisorDashboard.tsx) crea el registro vía [`crearGuardia`](apps/frontend/src/services/guardiasService.ts) y luego asigna técnicos con `actualizarGuardia`.
+- El formulario “Crear nueva guardia” en [`SupervisorDashboard`](apps/frontend/src/pages/SupervisorDashboard.tsx) crea la guardia y sus asignaciones en una sola llamada a `crearGuardia`, dentro de una transacción backend.
 - Validaciones locales impiden asignar fechas inconsistentes o duplicar roles (ver lógica en `handleCrearGuardia`).
 
 ### 4. Solicitar y aprobar permisos
@@ -140,6 +141,7 @@ package.json
 
 ## Próximos pasos 
 
-- Agregar pruebas automatizadas (unit/integration) tanto en backend como en frontend.
+- Consultar la [primera tanda de estabilización](docs/estabilizacion-2026-09-05.md): los cambios de sesión requieren un nuevo login para tokens anteriores y están cubiertos por pruebas con persistencia simulada.
+- Añadir integración con PostgreSQL real y pruebas E2E; ejecutar las pruebas existentes con `npm run test --workspace backend`.
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.

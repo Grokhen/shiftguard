@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
@@ -245,7 +246,11 @@ router.patch('/:id/decidir', async (req, res, next) => {
     }
 
     const actualizado = await prisma.permiso.update({
-      where: { id: permisoId },
+      where: {
+        id: permisoId,
+        estado_id: permiso.estado_id,
+        ...(!isAdmin ? { Usuario: { delegacion_id: user.deleg } } : {}),
+      },
       data: {
         estado_id: nuevoEstado.id,
         decidido_por: user.sub,
@@ -259,6 +264,11 @@ router.patch('/:id/decidir', async (req, res, next) => {
 
     res.json(actualizado)
   } catch (e: any) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+      return res
+        .status(409)
+        .json({ error: 'El permiso ha cambiado. Actualiza la lista antes de decidir.' })
+    }
     if (e?.statusCode) {
       return res.status(e.statusCode).json({ error: e.message })
     }

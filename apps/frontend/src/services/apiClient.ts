@@ -1,11 +1,13 @@
 import { API_BASE_URL } from '../config'
+import { notifySessionInvalidated } from '../utils/session'
 
 type ApiError = {
   error?: string
   message?: string
 }
 
-async function handleResponse<T>(res: Response, path: string): Promise<T> {
+async function handleResponse<T>(res: Response, path: string, token: string): Promise<T> {
+  if (res.status === 401) notifySessionInvalidated(token)
   if (!res.ok) {
     let message = `Error ${res.status} al llamar a ${path}`
 
@@ -19,6 +21,7 @@ async function handleResponse<T>(res: Response, path: string): Promise<T> {
     throw new Error(message)
   }
 
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
@@ -30,7 +33,7 @@ export async function authorizedGet<T>(path: string, token: string): Promise<T> 
     },
   })
 
-  return handleResponse<T>(res, path)
+  return handleResponse<T>(res, path, token)
 }
 
 export async function authorizedPost<T>(path: string, token: string, body: unknown): Promise<T> {
@@ -43,7 +46,7 @@ export async function authorizedPost<T>(path: string, token: string, body: unkno
     body: JSON.stringify(body),
   })
 
-  return handleResponse<T>(res, path)
+  return handleResponse<T>(res, path, token)
 }
 
 export async function authorizedPatch<T>(path: string, token: string, body: unknown): Promise<T> {
@@ -56,7 +59,7 @@ export async function authorizedPatch<T>(path: string, token: string, body: unkn
     body: JSON.stringify(body),
   })
 
-  return handleResponse<T>(res, path)
+  return handleResponse<T>(res, path, token)
 }
 
 export async function authorizedDelete(path: string, token: string): Promise<void> {
@@ -67,16 +70,5 @@ export async function authorizedDelete(path: string, token: string): Promise<voi
     },
   })
 
-  if (!res.ok) {
-    let message = `Error ${res.status} al llamar a ${path}`
-
-    try {
-      const data = (await res.json()) as ApiError
-      message = data?.error ?? data?.message ?? message
-    } catch {
-      // mensaje de error genérico
-    }
-
-    throw new Error(message)
-  }
+  await handleResponse<void>(res, path, token)
 }

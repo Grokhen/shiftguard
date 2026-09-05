@@ -20,6 +20,7 @@ router.post('/login', async (req, res, next) => {
       select: {
         id: true,
         password_hash: true,
+        password_actualizada_en: true,
         activo: true,
         bloqueado_en: true,
         rol_id: true,
@@ -39,7 +40,13 @@ router.post('/login', async (req, res, next) => {
 
     await prisma.usuario.update({ where: { id: user.id }, data: { ultimo_login: new Date() } })
     const token = jwt.sign(
-      { sub: user.id, role: user.rol_id, roleCode: user.Rol.codigo, deleg: user.delegacion_id },
+      {
+        sub: user.id,
+        role: user.rol_id,
+        roleCode: user.Rol.codigo,
+        deleg: user.delegacion_id,
+        passwordVersion: user.password_actualizada_en?.getTime() ?? 0,
+      },
       ENV.JWT_SECRET,
       { expiresIn: '15m' },
     )
