@@ -107,6 +107,8 @@ El seed crea roles, estados/tipos de permisos y un usuario admin (`admin@empresa
 
 La segunda orden requiere `TEST_DATABASE_URL` hacia una base local llamada `shiftguard_test`, sin parámetros en la URL. El ejecutor crea un esquema aleatorio, aplica las migraciones existentes, ejecuta las pruebas y elimina ese esquema al terminar. No utiliza `DATABASE_URL` como alternativa. CI prepara PostgreSQL 16 temporal y ejecuta ambas suites en PRs a `main` y pushes a `main` o `codex/**`. Ver [alcance y uso de la integración](docs/integracion-postgresql-2026-09-05.md).
 
+La integración cubre persistencia y rollback de guardias, traslados de usuarios/equipos frente a altas concurrentes de miembros o asignaciones, y decisiones simultáneas de permisos. También comprueba el alcance de una decisión cuando el solicitante cambia de delegación entre la lectura y la actualización del permiso.
+
 ### 1. Autenticación de usuario
 ```sh
 curl -X POST http://localhost:3001/api/auth/login \
@@ -163,6 +165,6 @@ La [rama de estabilización](https://github.com/Grokhen/shiftguard/tree/codex/se
 - Consultar la [bandeja de pendientes por delegación](docs/estabilizacion-pendientes-2026-09-05.md), verificada con usuarios sin equipo y solicitudes de otros años.
 - Consultar el [contrato de fechas de permisos](docs/estabilizacion-fechas-2026-09-05.md), incluidas las restricciones de entrada y la verificación de zonas horarias.
 - Consultar las [fechas y los rangos de guardias](docs/estabilizacion-guardias-fechas-2026-09-05.md), incluidos los límites del intervalo y la compatibilidad de clientes externos.
-- Ampliar la [integración con PostgreSQL](docs/integracion-postgresql-2026-09-05.md) a traslados y permisos y añadir pruebas E2E.
+- Añadir pruebas E2E sobre la [integración con PostgreSQL](docs/integracion-postgresql-2026-09-05.md), que ya cubre guardias, traslados y decisiones concurrentes de permisos.
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.

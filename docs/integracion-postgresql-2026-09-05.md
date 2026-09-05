@@ -26,7 +26,30 @@ CI arranca un servicio PostgreSQL 16 temporal con comprobación de salud, ejecut
 
 Las pruebas de rollback instalan y retiran una restricción CHECK únicamente en el esquema temporal para provocar un error real de escritura. Las carreras usan una barrera tras las dos primeras consultas de solapes: controla su orden, pero las consultas, el aislamiento, los commits, los abortos y los reintentos se ejecutan contra PostgreSQL. No se sustituyen los resultados de Prisma por datos simulados.
 
+### Ampliación: traslados de usuarios y equipos
+
+`integration/traslados.test.ts` añade 13 casos:
+
+- Los traslados se bloquean cuando dejarían miembros y equipos en delegaciones distintas. Se conservan también el nombre y las relaciones originales. Después de retirar la pertenencia mediante la API, el traslado persiste y no se permite volver a crear la relación entre delegaciones diferentes.
+- Las guardias vigentes y futuras bloquean el traslado del usuario; las históricas se conservan y permiten trasladarlo. Su token anterior queda invalidado y no se puede reprogramar una guardia histórica al futuro con el usuario ya trasladado. Las fechas de estos casos se calculan respecto al momento de ejecución.
+- Solo los administradores pueden trasladar usuarios o equipos. Una colisión del nombre del equipo en la delegación de destino produce 409 y conserva el equipo original.
+- Un traslado de usuario o equipo compite con el alta de un miembro. Un traslado de usuario también compite con la creación de una guardia con asignaciones, un alta individual de asignación y la reprogramación de una guardia histórica. En cada carrera se comprueban tres transacciones para dos peticiones: PostgreSQL aborta una, el backend la reintenta y vuelve a validar los datos. Solo una operación incompatible prospera y no quedan relaciones nuevas entre delegaciones diferentes ni cambios parciales de la operación perdedora.
+
+Las barreras de `integration/helpers.ts` esperan las lecturas de validación de las dos rutas antes de permitir sus escrituras. No fuerzan qué operación gana ni simulan errores de serialización. Los datos y JWT de prueba se crean para cada caso, con IDs obtenidos de PostgreSQL, dentro del esquema aislado existente.
+
+### Ampliación: decisiones concurrentes de permisos
+
+`integration/permisos.test.ts` añade seis casos:
+
+- Dos supervisores leen el mismo permiso pendiente y envían decisiones opuestas o iguales. Una petición recibe 200 y la otra 409; el estado, el decisor y las observaciones persistidos corresponden íntegramente a la ganadora. Repetir después la decisión recibe 400 porque el permiso ya no está pendiente, y la bandeja deja de mostrarlo.
+- Un supervisor de otra delegación recibe 403 aunque compita con una decisión válida de un administrador. Un técnico tampoco puede decidir su propia solicitud. Cuando se omiten observaciones se conservan las originales.
+- Tras leer un permiso, se completa por la API el traslado del solicitante antes de ejecutar la actualización. La decisión del supervisor anterior recibe 409 y deja el permiso intacto; una nueva petición recibe 403. El pendiente pasa a la bandeja de la delegación de destino, cuyo supervisor puede decidirlo. La misma secuencia permite la decisión de un administrador, cuyo alcance abarca ambas delegaciones.
+
+Se retrasan las respuestas de consultas reales para fijar estas secuencias; las actualizaciones condicionales y sus conflictos se ejecutan en PostgreSQL. Se comprueba también que las respuestas de decisión y la bandeja de destino no exponen `password_hash`. Esta ampliación añade cobertura sobre el comportamiento existente, sin modificar las rutas de producción, el modelo Prisma ni las migraciones.
+
 ## Verificación
+
+### Suite inicial de guardias
 
 - 288 pruebas de la suite habitual correctas, incluidas 14 nuevas sobre aislamiento del destino de integración.
 - Tipos de integración y compilación backend correctos.
@@ -37,6 +60,13 @@ Las pruebas de rollback instalan y retiran una restricción CHECK únicamente en
 
 En este equipo Docker está instalado en la sesión del usuario, pero el intento de inicio no ha dejado un motor accesible. No se han instalado dependencias ni modificado la configuración de Windows para remediarlo.
 
+### Ampliación de traslados y permisos
+
+- `1bc31f9`: 13 pruebas nuevas de traslados, verificadas con las ocho de guardias en [CI, ejecución 15](https://github.com/Grokhen/shiftguard/actions/runs/33981561875).
+- `175d964`: seis pruebas nuevas de permisos, verificadas en [CI, ejecución 16](https://github.com/Grokhen/shiftguard/actions/runs/33981719585). Total: **315 pruebas correctas**, 288 habituales y 27 de integración (ocho de guardias, 13 de traslados y seis de permisos); 19 más que en la tanda anterior.
+- CI confirma los conflictos reales de traslados, las actualizaciones condicionales de permisos y la eliminación del esquema temporal `shiftguard_it_2e6b182330f34ece87e05fcb295808d0`. También pasan generación de Prisma, tipos de integración, compilaciones backend/frontend y lint frontend.
+- Localmente pasan las 288 pruebas habituales, los tipos de integración y la compilación backend con Node 22.23.2. Vitest necesitó ejecutarse fuera del sandbox por una denegación de lectura de esbuild al cargar la configuración. La ejecución con PostgreSQL se verificó en CI: esta sesión no tiene `TEST_DATABASE_URL` definida. No se instalaron dependencias locales ni se modificaron secretos o migraciones.
+
 ## Pendientes
 
-Ampliar esta suite a traslados de usuarios/equipos y decisiones concurrentes de permisos. Definir las reglas de disponibilidad ante ausencias aprobadas y la actualización temporal de los paneles. La rama sigue pendiente de revisión e integración en `main`; añadir estas pruebas no despliega la aplicación.
+Añadir pruebas E2E de los flujos completos. Definir las reglas de disponibilidad ante ausencias aprobadas y la actualización temporal de los paneles. La rama sigue pendiente de revisión e integración en `main`; añadir estas pruebas no despliega la aplicación.

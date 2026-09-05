@@ -196,7 +196,7 @@ describe('permission decisions overlapping a requester transfer', () => {
           .send({ delegacion_id: data.otherDelegation.id })
           .expect(200)
         return result
-    }) as unknown as typeof prisma.permiso.findUnique)
+      }) as unknown as typeof prisma.permiso.findUnique)
       try {
         const response = await decide(
           data,
