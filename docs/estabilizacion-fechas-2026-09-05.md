@@ -24,4 +24,4 @@ Los clientes de alta de permisos deben enviar `YYYY-MM-DD`; el frontend del repo
 
 No se han modificado datos existentes, secretos, dependencias ni migraciones. Una fecha previamente normalizada y guardada no se corrige automáticamente.
 
-Siguen pendientes la integración con PostgreSQL, una validación estricta de timestamps y rangos de guardias, las reglas de disponibilidad frente a ausencias aprobadas, la revocación persistente de sesiones y las actualizaciones revisadas de dependencias. La rama permanece pendiente de publicación hasta resolver el acceso a GitHub.
+Siguen pendientes la integración con PostgreSQL, una validación estricta de timestamps y rangos de guardias, las reglas de disponibilidad frente a ausencias aprobadas, la revocación persistente de sesiones y las actualizaciones revisadas de dependencias. La rama ya está publicada en GitHub y pendiente de revisión e integración en `main`.

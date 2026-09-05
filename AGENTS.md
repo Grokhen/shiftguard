@@ -20,6 +20,7 @@ ShiftGuard es un monorepo con:
 - Antes de cambiar logica sensible, revisar rutas, validaciones, roles y modelo Prisma.
 - Usar Node segun `.nvmrc` (`22.12.0`) o una version compatible con Vite (`20.19+` o `22.12+`).
 - No ejecutar `npm audit fix` sin revisar el impacto.
+- En este equipo hay dos instalaciones de Git. Si el envio queda esperando en `credential-helper-selector`, usar Git Credential Manager directamente con `git -c credential.helper= -c credential.helper=manager push ...` en la sesion de Windows del usuario, sin cambiar la configuracion global. No confundir ese bloqueo con falta de autorizacion en GitHub.
 
 ## Comandos utiles
 

@@ -25,4 +25,4 @@ La sección de permisos activos del equipo conserva su consulta y filtro anterio
 
 ## Próximos pasos
 
-Revisar el contrato de fechas de permisos y filtros anuales, incluyendo días inexistentes y cruces de año. Completar integración con PostgreSQL y disponibilidad frente a ausencias aprobadas. La publicación de la rama requiere resolver el acceso de escritura a GitHub.
+Revisar el contrato de fechas de permisos y filtros anuales, incluyendo días inexistentes y cruces de año. Completar integración con PostgreSQL y disponibilidad frente a ausencias aprobadas. La rama ya está publicada en GitHub; su revisión e integración en `main` siguen pendientes.

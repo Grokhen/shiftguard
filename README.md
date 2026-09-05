@@ -147,6 +147,8 @@ package.json
 
 ## Próximos pasos 
 
+La [rama de estabilización](https://github.com/Grokhen/shiftguard/tree/codex/security-stabilization) está publicada en GitHub. Sus cambios siguen pendientes de revisión e integración en `main`; no se han desplegado.
+
 - Consultar la [primera tanda de estabilización](docs/estabilizacion-2026-09-05.md): los cambios de sesión requieren un nuevo login para tokens anteriores y están cubiertos por pruebas con persistencia simulada.
 - Consultar la [protección del seed y del login](docs/estabilizacion-seed-login-2026-09-05.md), incluidos los límites de operación y las tareas pendientes.
 - Consultar el [cambio obligatorio de contraseña](docs/estabilizacion-password-reset-2026-09-05.md) y sus consideraciones de despliegue.
