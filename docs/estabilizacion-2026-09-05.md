@@ -2,6 +2,8 @@
 
 La primera tanda corrige autorización de sesiones, traslados entre delegaciones y varias reglas de integridad de la auditoría. Los cambios están en el checkout local; no se han desplegado.
 
+La [segunda tanda](estabilizacion-seed-login-2026-09-05.md) elimina las credenciales predeterminadas del seed y añade límites de solicitudes al login. El resto de este documento conserva el alcance y la verificación de la primera tanda.
+
 **Cambios aplicados**
 
 - Cada petición autenticada consulta la cuenta activa y no bloqueada. Si cambian su rol, código de rol o delegación respecto al token, exige un nuevo login. La autorización usa los datos comprobados de la cuenta.

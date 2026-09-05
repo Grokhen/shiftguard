@@ -4,15 +4,16 @@ import * as argon2 from 'argon2'
 import * as jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import { ENV } from '../../config/env'
+import { createLoginRateLimiter } from '../../middlewares/loginRateLimit'
 
 const router = Router()
 
 const loginSchema = z.object({
-  email: z.email(),
+  email: z.email().max(255),
   password: z.string().min(8),
 })
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', createLoginRateLimiter(), async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body)
     const user = await prisma.usuario.findUnique({

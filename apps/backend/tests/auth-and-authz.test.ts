@@ -578,6 +578,21 @@ describe('audit regressions: competing permission decisions', () => {
 })
 
 describe('auth login', () => {
+  it('rejects excessive attempts before querying the database', async () => {
+    prismaMock.usuario.findUnique.mockResolvedValue(null)
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await request(app).post('/api/auth/login')
+        .send({ email: 'throttled@example.com', password: 'incorrect-password' })
+        .expect(401)
+    }
+    const response = await request(app).post('/api/auth/login')
+      .send({ email: 'throttled@example.com', password: 'incorrect-password' })
+      .expect(429)
+    expect(Number(response.headers['retry-after'])).toBeGreaterThan(0)
+    expect(prismaMock.usuario.findUnique).toHaveBeenCalledTimes(10)
+    expect(argon2Mock.verify).not.toHaveBeenCalled()
+  })
+
   it('returns a JWT with stable role code for valid credentials', async () => {
     prismaMock.usuario.findUnique.mockResolvedValue({
       id: 10,

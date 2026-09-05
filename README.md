@@ -56,7 +56,7 @@ Variables requeridas según [`ENV`](apps/backend/src/config/env.ts):
 | `AUTH_PEPPER` | Pepper usado junto a Argon2. |
 | `PORT` | (Opcional) Puerto HTTP (por defecto 3001). |
 | `CORS_ORIGIN` | (Opcional) Origen permitido por CORS. Si no se define, usa la configuración abierta por defecto de `cors`. |
-| `SEED_ADMIN_PASSWORD` | (Opcional) Contraseña para el seed inicial, usada en [prisma/seed.ts](apps/backend/src/prisma/seed.ts). |
+| `SEED_ADMIN_PASSWORD` | Obligatoria al ejecutar el seed: contraseña explícita de entre 12 y 128 caracteres. No es necesaria para arrancar la API. |
 
 ### Frontend (`apps/frontend/.env.local`)
 - `VITE_API_BASE_URL=http://localhost:3001` (ver [apps/frontend/src/config.ts](apps/frontend/src/config.ts)).
@@ -71,7 +71,7 @@ npx prisma migrate deploy
 npx prisma db seed
 ```
 
-El seed crea roles, estados/tipos de permisos y un usuario admin (`admin@empresa.local` con la contraseña definida en `SEED_ADMIN_PASSWORD` o `Admin1234!` por defecto).
+El seed crea roles, estados/tipos de permisos y un usuario admin (`admin@empresa.local` con la contraseña definida en `SEED_ADMIN_PASSWORD`). Valida `AUTH_PEPPER` y la contraseña antes de escribir, y aplica los datos en una transacción. No imprime contraseñas ni utiliza valores predeterminados. Si el admin ya existe, conserva sus credenciales; repetir el seed no sirve para restablecerlas. Ambos comandos de seed (`npx prisma db seed` y `npm run prisma:seed`) cargan el `.env` del directorio de trabajo.
 
 ## Ejecución en desarrollo
 
@@ -105,9 +105,11 @@ El seed crea roles, estados/tipos de permisos y un usuario admin (`admin@empresa
 ```sh
 curl -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@empresa.local","password":"Admin1234!"}'
+  -d '{"email":"admin@empresa.local","password":"<contraseña configurada en el seed>"}'
 ```
 La respuesta incluye `access_token` para consumir el resto de endpoints.
+
+El login admite hasta 10 solicitudes por cuenta y 50 por IP en una ventana de 15 minutos por contador, incluidas las solicitudes correctas. Al superar un límite devuelve 429 y `Retry-After` en segundos. Los contadores caducan sin intervención y son locales al proceso: al reiniciarlo se pierden. Antes de desplegar varias instancias, configurar un límite compartido en la pasarela o un almacén común. Express usa la IP de la conexión; detrás de un proxy, todas sus peticiones comparten el límite de IP hasta configurar una política de proxies de confianza acorde con la infraestructura. No activar confianza indiscriminada en `X-Forwarded-For`.
 
 ### 2. Crear usuario desde la UI
 - Inicia sesión como admin.
@@ -142,6 +144,7 @@ package.json
 ## Próximos pasos 
 
 - Consultar la [primera tanda de estabilización](docs/estabilizacion-2026-09-05.md): los cambios de sesión requieren un nuevo login para tokens anteriores y están cubiertos por pruebas con persistencia simulada.
+- Consultar la [protección del seed y del login](docs/estabilizacion-seed-login-2026-09-05.md), incluidos los límites de operación y las tareas pendientes.
 - Añadir integración con PostgreSQL real y pruebas E2E; ejecutar las pruebas existentes con `npm run test --workspace backend`.
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.
