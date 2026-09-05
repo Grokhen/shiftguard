@@ -1,9 +1,10 @@
 import { API_BASE_URL } from '../config'
-import { notifySessionInvalidated } from '../utils/session'
+import { notifyPasswordChangeRequired, notifySessionInvalidated } from '../utils/session'
 
 type ApiError = {
   error?: string
   message?: string
+  code?: string
 }
 
 async function handleResponse<T>(res: Response, path: string, token: string): Promise<T> {
@@ -13,6 +14,9 @@ async function handleResponse<T>(res: Response, path: string, token: string): Pr
 
     try {
       const data = (await res.json()) as ApiError
+      if (res.status === 403 && data?.code === 'PASSWORD_CHANGE_REQUIRED') {
+        notifyPasswordChangeRequired(token)
+      }
       message = data?.error ?? data?.message ?? message
     } catch {
       // mensaje de error genérico

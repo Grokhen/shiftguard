@@ -111,6 +111,8 @@ La respuesta incluye `access_token` para consumir el resto de endpoints.
 
 El login admite hasta 10 solicitudes por cuenta y 50 por IP en una ventana de 15 minutos por contador, incluidas las solicitudes correctas. Al superar un límite devuelve 429 y `Retry-After` en segundos. Los contadores caducan sin intervención y son locales al proceso: al reiniciarlo se pierden. Antes de desplegar varias instancias, configurar un límite compartido en la pasarela o un almacén común. Express usa la IP de la conexión; detrás de un proxy, todas sus peticiones comparten el límite de IP hasta configurar una política de proxies de confianza acorde con la infraestructura. No activar confianza indiscriminada en `X-Forwarded-For`.
 
+Las cuentas creadas desde administración y las contraseñas restablecidas por un administrador deben cambiar su contraseña al entrar. Mientras `requiere_reset` sea verdadero, la API solo permite consultar `GET /api/usuarios/me` y cambiar la contraseña con `PATCH /api/usuarios/me/password`. El resto de rutas protegidas devuelve 403 con el código `PASSWORD_CHANGE_REQUIRED`. La pantalla `/cambiar-password` solicita la contraseña actual y una nueva distinta (mínimo 8 caracteres), con confirmación. Al guardar, se invalidan las sesiones anteriores y se solicita un nuevo login. El enlace «Cambiar contraseña» también permite un cambio voluntario desde cualquier panel.
+
 ### 2. Crear usuario desde la UI
 - Inicia sesión como admin.
 - Navega a `/admin/usuarios/nuevo`.
@@ -145,6 +147,7 @@ package.json
 
 - Consultar la [primera tanda de estabilización](docs/estabilizacion-2026-09-05.md): los cambios de sesión requieren un nuevo login para tokens anteriores y están cubiertos por pruebas con persistencia simulada.
 - Consultar la [protección del seed y del login](docs/estabilizacion-seed-login-2026-09-05.md), incluidos los límites de operación y las tareas pendientes.
+- Consultar el [cambio obligatorio de contraseña](docs/estabilizacion-password-reset-2026-09-05.md) y sus consideraciones de despliegue.
 - Añadir integración con PostgreSQL real y pruebas E2E; ejecutar las pruebas existentes con `npm run test --workspace backend`.
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.

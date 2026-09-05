@@ -141,6 +141,7 @@ describe('audit regressions: session authorization', () => {
         rol_id: true,
         delegacion_id: true,
         password_actualizada_en: true,
+        requiere_reset: true,
         Rol: { select: { codigo: true } },
       },
     })

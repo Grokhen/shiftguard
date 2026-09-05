@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
+import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { TechnicianDashboard } from './pages/TechnicianDashboard'
 import { SupervisorDashboard } from './pages/SupervisorDashboard'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
@@ -17,6 +18,15 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<LoginPage />} />
+
+      <Route
+        path="/cambiar-password"
+        element={
+          <ProtectedRoute allowPasswordChange>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/tecnico"

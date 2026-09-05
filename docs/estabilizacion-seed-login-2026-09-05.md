@@ -2,6 +2,8 @@
 
 Esta tanda continúa la auditoría con cambios acotados al backend, sus pruebas y la documentación. No requiere dependencias nuevas ni migraciones y no se ha desplegado.
 
+El [cambio obligatorio de contraseña](estabilizacion-password-reset-2026-09-05.md) se completa en la siguiente tanda. Las verificaciones y prioridades restantes de este documento corresponden al cierre de la protección del seed y del login.
+
 ## Seed
 
 - Se elimina la contraseña predeterminada. `SEED_ADMIN_PASSWORD` debe definirse explícitamente y tener entre 12 y 128 caracteres; `AUTH_PEPPER` también es obligatorio. Esta validación ocurre antes de calcular el hash o escribir datos.

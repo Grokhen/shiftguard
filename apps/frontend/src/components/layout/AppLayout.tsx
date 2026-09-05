@@ -56,7 +56,7 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white font-semibold">
               SG
@@ -66,6 +66,9 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
 
           <div className="flex items-center gap-3 text-sm text-slate-500">
             <span className="hidden sm:inline">{roleLabel(user?.roleCode)}</span>
+            <Link to="/cambiar-password" className="text-xs text-blue-700 hover:underline">
+              Cambiar contraseña
+            </Link>
             <button
               onClick={handleLogout}
               className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"

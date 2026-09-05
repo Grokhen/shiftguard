@@ -83,3 +83,14 @@ export async function actualizarUsuario(
   const path = `/api/usuarios/${id}`
   return authorizedPatch<Usuario>(path, accessToken, payload)
 }
+
+export async function cambiarPasswordPropia(
+  accessToken: string,
+  passwordActual: string,
+  passwordNueva: string,
+): Promise<void> {
+  await authorizedPatch<void>('/api/usuarios/me/password', accessToken, {
+    password_actual: passwordActual,
+    password_nueva: passwordNueva,
+  })
+}

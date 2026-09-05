@@ -30,7 +30,12 @@ function isAuthPayload(payload: unknown): payload is SessionPayload {
   )
 }
 
-export async function authRequired(req: Request, res: Response, next: NextFunction) {
+async function authenticate(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  allowPasswordChange: boolean,
+) {
   const header = req.headers.authorization || ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : null
 
@@ -57,6 +62,7 @@ export async function authRequired(req: Request, res: Response, next: NextFuncti
         rol_id: true,
         delegacion_id: true,
         password_actualizada_en: true,
+        requiere_reset: true,
         Rol: { select: { codigo: true } },
       },
     })
@@ -71,6 +77,13 @@ export async function authRequired(req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ error: 'Sesión invalidada. Inicia sesión de nuevo.' })
     }
 
+    if (user.requiere_reset && !allowPasswordChange) {
+      return res.status(403).json({
+        code: 'PASSWORD_CHANGE_REQUIRED',
+        error: 'Debes cambiar tu contraseña antes de continuar.',
+      })
+    }
+
     req.user = {
       sub: user.id,
       role: user.rol_id,
@@ -81,4 +94,13 @@ export async function authRequired(req: Request, res: Response, next: NextFuncti
   } catch (error) {
     next(error)
   }
+}
+
+export function authRequired(req: Request, res: Response, next: NextFunction) {
+  return authenticate(req, res, next, false)
+}
+
+// Use only on the own-profile and own-password routes, which cannot access other accounts.
+export function passwordChangeAuth(req: Request, res: Response, next: NextFunction) {
+  return authenticate(req, res, next, true)
 }

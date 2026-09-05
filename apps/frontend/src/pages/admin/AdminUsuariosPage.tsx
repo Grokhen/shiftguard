@@ -188,6 +188,7 @@ function UserEditModal({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <p className="text-xs text-slate-500">El usuario deberá cambiarla al iniciar sesión.</p>
             </div>
           </div>
 

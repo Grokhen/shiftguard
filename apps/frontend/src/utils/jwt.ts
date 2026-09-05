@@ -7,6 +7,7 @@ export type AuthTokenPayload = {
   deleg: number
   exp: number
   iat?: number
+  requiresPasswordChange?: boolean
 }
 
 function isRoleCode(value: unknown): value is RoleCode {
@@ -25,7 +26,9 @@ export function parseJwt(token: string): AuthTokenPayload | null {
       typeof payload.role !== 'number' ||
       !isRoleCode(payload.roleCode) ||
       typeof payload.deleg !== 'number' ||
-      typeof payload.exp !== 'number'
+      typeof payload.exp !== 'number' ||
+      (payload.requiresPasswordChange !== undefined &&
+        typeof payload.requiresPasswordChange !== 'boolean')
     ) {
       return null
     }

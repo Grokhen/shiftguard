@@ -6,7 +6,7 @@ import { ROLE_ADMIN, ROLE_SUPERVISOR, ROLE_TECNICO } from '../constants/roles'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const { signIn, isAuthenticated, user } = useAuth()
+  const { signIn, isAuthenticated, user, passwordChanged } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -15,7 +15,9 @@ export function LoginPage() {
   useEffect(() => {
     if (!isAuthenticated || !user) return
 
-    if (user.roleCode === ROLE_TECNICO) {
+    if (user.requiresPasswordChange) {
+      navigate('/cambiar-password', { replace: true })
+    } else if (user.roleCode === ROLE_TECNICO) {
       navigate('/tecnico', { replace: true })
     } else if (user.roleCode === ROLE_SUPERVISOR) {
       navigate('/supervisor', { replace: true })
@@ -53,6 +55,12 @@ export function LoginPage() {
             Introduce tu correo corporativo y contraseña para entrar.
           </p>
         </div>
+
+        {passwordChanged && (
+          <p role="status" className="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-800">
+            Contraseña actualizada. Inicia sesión con tu nueva contraseña.
+          </p>
+        )}
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-1">

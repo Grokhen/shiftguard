@@ -6,6 +6,7 @@ export type AuthContextValue = {
   user: AuthTokenPayload | null
   isAuthenticated: boolean
   isLoading: boolean
+  passwordChanged: boolean
   signIn: (email: string, password: string) => Promise<AuthTokenPayload>
   signOut: () => void
 }

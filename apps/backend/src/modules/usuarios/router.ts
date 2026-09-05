@@ -1,8 +1,8 @@
-import { Router } from 'express'
+import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod'
 import argon2 from 'argon2'
 import { prisma } from '../../prisma'
-import { authRequired } from '../../middlewares/authRequired'
+import { authRequired, passwordChangeAuth } from '../../middlewares/authRequired'
 import { ENV } from '../../config/env'
 import { ensureAdmin, type AuthUser } from '../../utils/authz'
 import { serializableTransaction } from '../../utils/transaction'
@@ -10,6 +10,9 @@ import { httpError } from '../../utils/httpError'
 
 const router = Router()
 
+// Register the two recovery routes before enforcing password changes everywhere else.
+router.get('/me', passwordChangeAuth, getOwnProfile)
+router.patch('/me/password', passwordChangeAuth, changeOwnPassword)
 router.use(authRequired)
 
 const crearUsuarioSchema = z.object({
@@ -29,7 +32,7 @@ const editarUsuarioSchema = z.object({
   rol_id: z.number().int().positive().optional(),
   delegacion_id: z.number().int().positive().optional(),
   activo: z.boolean().optional(),
-  requiere_reset: z.boolean().optional(),
+  requiere_reset: z.literal(true).optional(),
   password: z.string().min(8).optional(),
 })
 
@@ -131,7 +134,7 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-router.get('/me', async (req, res, next) => {
+async function getOwnProfile(req: Request, res: Response, next: NextFunction) {
   try {
     const authUser = req.user as AuthUser
 
@@ -148,7 +151,7 @@ router.get('/me', async (req, res, next) => {
   } catch (e) {
     next(e)
   }
-})
+}
 
 router.patch('/me', async (req, res, next) => {
   try {
@@ -168,11 +171,14 @@ router.patch('/me', async (req, res, next) => {
   }
 })
 
-router.patch('/me/password', async (req, res, next) => {
+async function changeOwnPassword(req: Request, res: Response, next: NextFunction) {
   try {
     const authUser = req.user as AuthUser
 
     const dto = cambiarPasswordSchema.parse(req.body)
+    if (dto.password_nueva === dto.password_actual) {
+      return res.status(400).json({ error: 'La nueva contraseña debe ser distinta de la actual.' })
+    }
 
     const usuario = await prisma.usuario.findUnique({
       where: { id: authUser.sub },
@@ -212,7 +218,7 @@ router.patch('/me/password', async (req, res, next) => {
   } catch (e) {
     next(e)
   }
-})
+}
 
 router.patch('/:id', async (req, res, next) => {
   try {
@@ -270,7 +276,7 @@ router.patch('/:id', async (req, res, next) => {
                 password_actualizada_en: new Date(
                   Math.max(Date.now(), (current.password_actualizada_en?.getTime() ?? 0) + 1),
                 ),
-                requiere_reset: false,
+                requiere_reset: true,
               }
             : {}),
         },

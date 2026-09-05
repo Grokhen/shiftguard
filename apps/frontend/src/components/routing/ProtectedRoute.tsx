@@ -6,9 +6,14 @@ import type { RoleCode } from '../../constants/roles'
 interface ProtectedRouteProps {
   children: ReactNode
   allowedRoles?: RoleCode[]
+  allowPasswordChange?: boolean
 }
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  allowedRoles,
+  allowPasswordChange = false,
+}: ProtectedRouteProps) {
   const { isAuthenticated, user, isLoading } = useAuth()
   const location = useLocation()
 
@@ -28,6 +33,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (allowedRoles && !allowedRoles.includes(user.roleCode)) {
     return <Navigate to="/" replace />
+  }
+
+  if (user.requiresPasswordChange && !allowPasswordChange) {
+    return <Navigate to="/cambiar-password" replace />
   }
 
   return <>{children}</>
