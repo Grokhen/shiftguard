@@ -72,6 +72,8 @@ docker compose up -d
 
 ## Verificacion recomendada
 
+- No cerrar programaticamente pestanas ni el navegador integrado al terminar pruebas: el usuario ha reportado que esto puede cerrar la aplicacion de escritorio. Dejar el navegador abierto y detener solo los servidores temporales iniciados por la tarea.
+
 Segun el cambio, ejecutar:
 
 - Backend: `npm run build`.
