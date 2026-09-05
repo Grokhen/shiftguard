@@ -1,9 +1,10 @@
-import { PrismaClient } from '@prisma/client'
+import 'dotenv/config'
+import { Prisma, PrismaClient } from '@prisma/client'
 import argon2 from 'argon2'
 
-const prisma = new PrismaClient()
+class SeedConfigurationError extends Error {}
 
-async function upserts() {
+async function upserts(prisma: Prisma.TransactionClient) {
   const roles = [
     { codigo: 'TECNICO', nombre: 'Técnico' },
     { codigo: 'SUPERVISOR', nombre: 'Supervisor' },
@@ -63,66 +64,66 @@ async function upserts() {
   }
 }
 
-async function main() {
-  await upserts()
-
-  const deleg = await prisma.delegacion.upsert({
-    where: { nombre: 'Bilbao' },
-    update: {},
-    create: {
-      nombre: 'Bilbao',
-      codigo: 'BILBAO',
-      pais_code: 'ES',
-      region_code: 'Euskadi',
-    },
-  })
-
-  if (!process.env.AUTH_PEPPER) {
-    throw new Error('AUTH_PEPPER no está definido en el .env (requerido para el seed del admin).')
+export async function seedDatabase(prisma: PrismaClient, env: NodeJS.ProcessEnv = process.env) {
+  // Validate before hashing or writing any catalog data. Never supply a default password.
+  if (!env.AUTH_PEPPER) {
+    throw new SeedConfigurationError('AUTH_PEPPER es obligatorio para ejecutar el seed.')
+  }
+  if (!env.SEED_ADMIN_PASSWORD || env.SEED_ADMIN_PASSWORD.length < 12 || env.SEED_ADMIN_PASSWORD.length > 128) {
+    throw new SeedConfigurationError('SEED_ADMIN_PASSWORD es obligatoria y debe tener entre 12 y 128 caracteres.')
   }
 
-  const rolAdmin = await prisma.rolUsuario.findUnique({
-    where: { codigo: 'ADMIN' },
-  })
-
-  if (!rolAdmin) {
-    throw new Error('No se encontró el rol ADMIN después del upsert.')
-  }
-
-  const pepper = process.env.AUTH_PEPPER
-  const plainPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin1234!'
-
-  const hash = await argon2.hash(plainPassword + pepper, {
+  const hash = await argon2.hash(env.SEED_ADMIN_PASSWORD + env.AUTH_PEPPER, {
     type: argon2.argon2id,
     memoryCost: 2 ** 16,
     timeCost: 3,
   })
 
-  const admin = await prisma.usuario.upsert({
-    where: { email: 'admin@empresa.local' },
-    update: {},
-    create: {
-      nombre: 'Admin',
-      apellidos: 'Sistema',
-      email: 'admin@empresa.local',
-      password_hash: hash,
-      rol_id: rolAdmin.id,
-      delegacion_id: deleg.id,
-    },
-  })
+  return prisma.$transaction(async (tx) => {
+    await upserts(tx)
+    const deleg = await tx.delegacion.upsert({
+      where: { nombre: 'Bilbao' },
+      update: {},
+      create: {
+        nombre: 'Bilbao',
+        codigo: 'BILBAO',
+        pais_code: 'ES',
+        region_code: 'Euskadi',
+      },
+    })
+    const rolAdmin = await tx.rolUsuario.findUnique({ where: { codigo: 'ADMIN' } })
+    if (!rolAdmin) throw new Error('No se encontró el rol ADMIN después del upsert.')
 
-  console.log('Seed completado.')
-  console.log('Usuario admin listo para login:')
-  console.log(`email: ${admin.email}`)
-  console.log(`password: ${plainPassword}`)
+    return tx.usuario.upsert({
+      where: { email: 'admin@empresa.local' },
+      update: {}, // Re-running the seed must never reset an existing account.
+      create: {
+        nombre: 'Admin',
+        apellidos: 'Sistema',
+        email: 'admin@empresa.local',
+        password_hash: hash,
+        password_actualizada_en: new Date(),
+        rol_id: rolAdmin.id,
+        delegacion_id: deleg.id,
+      },
+      select: { email: true },
+    })
+  })
 }
 
-main()
-  .catch((e) => {
-    console.error('Error durante el seed:')
-    console.error(e)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+if (require.main === module) {
+  const prisma = new PrismaClient()
+  seedDatabase(prisma)
+    .then((admin) => {
+      console.log(`Seed completado. Cuenta inicial: ${admin.email}.`)
+      console.log('Si la cuenta ya existía, se han conservado sus credenciales.')
+    })
+    .catch((error: unknown) => {
+      // Prisma errors can contain query arguments. Do not print credentials or hashes.
+      console.error(error instanceof SeedConfigurationError ? error.message : 'Error durante el seed. Revisa la conexión y el esquema de la base de datos.')
+      process.exitCode = 1
+    })
+    .finally(async () => {
+      await prisma.$disconnect()
+    })
+}
