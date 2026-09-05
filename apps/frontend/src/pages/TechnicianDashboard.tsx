@@ -9,7 +9,7 @@ import {
   type Permiso,
   type TipoPermiso,
 } from '../services/permisosService'
-import { formatDateLong, formatTime, formatDateRange } from '../utils/date'
+import { formatDateLong, formatTime, formatCalendarDateRange } from '../utils/date'
 
 export function TechnicianDashboard() {
   const { accessToken } = useAuth()
@@ -255,7 +255,7 @@ export function TechnicianDashboard() {
                   className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
                 >
                   <span className="text-slate-700">
-                    {formatDateRange(v.fecha_inicio, v.fecha_fin)}
+                    {formatCalendarDateRange(v.fecha_inicio, v.fecha_fin)}
                   </span>
                   <span className="text-xs font-medium text-slate-500">{v.Tipo.nombre}</span>
                 </li>
@@ -278,7 +278,9 @@ export function TechnicianDashboard() {
                   className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2"
                 >
                   <div>
-                    <p className="text-slate-800">{formatDateRange(v.fecha_inicio, v.fecha_fin)}</p>
+                    <p className="text-slate-800">
+                      {formatCalendarDateRange(v.fecha_inicio, v.fecha_fin)}
+                    </p>
                     <p className="text-xs text-slate-500">{v.Tipo.nombre}</p>
                   </div>
                   <span className="text-xs font-medium text-amber-700">{v.Estado.nombre}</span>

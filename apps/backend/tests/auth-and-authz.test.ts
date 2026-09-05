@@ -1607,9 +1607,9 @@ describe('team members and team permissions', () => {
         usuario_id: { in: [10, 11] },
         Usuario: { delegacion_id: 1 },
         fecha_inicio: {
-          gte: new Date(2026, 0, 1),
-          lte: new Date(2026, 11, 31),
+          lte: new Date('2026-12-31T00:00:00.000Z'),
         },
+        fecha_fin: { gte: new Date('2026-01-01T00:00:00.000Z') },
       },
       include: {
         Usuario: {

@@ -24,25 +24,18 @@ import {
   type PermisoEquipo,
   type PermisoConUsuario,
 } from '../services/permisosService'
-import { formatDateLong, formatTime } from '../utils/date'
+import {
+  formatCalendarDateLong,
+  formatDateLong,
+  formatTime,
+  isCalendarDateActive,
+} from '../utils/date'
 
 function isNowBetween(startIso: string, endIso: string): boolean {
   const now = new Date()
   const start = new Date(startIso)
   const end = new Date(endIso)
   return start.getTime() <= now.getTime() && now.getTime() <= end.getTime()
-}
-
-function isTodayBetween(startIso: string, endIso: string): boolean {
-  const today = new Date()
-  const start = new Date(startIso)
-  const end = new Date(endIso)
-
-  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate())
-
-  return s.getTime() <= t.getTime() && t.getTime() <= e.getTime()
 }
 
 export function SupervisorDashboard() {
@@ -226,7 +219,7 @@ export function SupervisorDashboard() {
 
   const permisosActivosHoy = useMemo(() => {
     return permisosEquipo.filter((p) => {
-      const activoEnFecha = isTodayBetween(p.fecha_inicio, p.fecha_fin)
+      const activoEnFecha = isCalendarDateActive(p.fecha_inicio, p.fecha_fin)
       const estadoValido = ['APROBADO', 'PENDIENTE'].includes(p.Estado.codigo)
       return activoEnFecha && estadoValido
     })
@@ -551,8 +544,8 @@ export function SupervisorDashboard() {
                     {p.Usuario.nombre} {p.Usuario.apellidos}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {p.Tipo.nombre} · {formatDateLong(p.fecha_inicio)} –{' '}
-                    {formatDateLong(p.fecha_fin)}
+                    {p.Tipo.nombre} · {formatCalendarDateLong(p.fecha_inicio)} –{' '}
+                    {formatCalendarDateLong(p.fecha_fin)}
                   </p>
                 </div>
                 <span
@@ -612,8 +605,8 @@ export function SupervisorDashboard() {
                     {p.Usuario.nombre} {p.Usuario.apellidos}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {p.Tipo.nombre} · {formatDateLong(p.fecha_inicio)} –{' '}
-                    {formatDateLong(p.fecha_fin)}
+                    {p.Tipo.nombre} · {formatCalendarDateLong(p.fecha_inicio)} –{' '}
+                    {formatCalendarDateLong(p.fecha_fin)}
                   </p>
                 </div>
                 <div className="flex gap-2 text-xs">

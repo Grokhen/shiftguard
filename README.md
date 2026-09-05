@@ -126,6 +126,7 @@ Las cuentas creadas desde administración y las contraseñas restablecidas por u
 - Técnicos usan el formulario gestionado por [`handleSolicitarPermiso`](apps/frontend/src/pages/TechnicianDashboard.tsx) que llama a [`crearPermiso`](apps/frontend/src/services/permisosService.ts).
 - Supervisores deciden solicitudes mediante `decidirPermiso` cuando usan la sección “Permisos pendientes de aprobación”.
 - La bandeja consulta `GET /api/permisos/pendientes`: incluye todos los pendientes de la delegación del supervisor, sin filtrar por equipo o año. Los administradores pueden consultar todas las delegaciones o indicar `delegacion_id`. Los datos de usuario se seleccionan expresamente para no exponer credenciales. La lista se actualiza después de una decisión y mediante el botón «Actualizar».
+- Las fechas de permisos se envían como días válidos `YYYY-MM-DD`, sin hora ni zona horaria. El intervalo incluye ambos extremos. Los filtros `anio` de permisos propios y de equipo admiten 1–9999 e incluyen cualquier permiso que coincida con algún día del año, aunque empiece antes o termine después. La interfaz conserva estos días al mostrarlos en otras zonas horarias.
 
 ## Estructura del monorepo (resumen)
 
@@ -150,6 +151,7 @@ package.json
 - Consultar la [protección del seed y del login](docs/estabilizacion-seed-login-2026-09-05.md), incluidos los límites de operación y las tareas pendientes.
 - Consultar el [cambio obligatorio de contraseña](docs/estabilizacion-password-reset-2026-09-05.md) y sus consideraciones de despliegue.
 - Consultar la [bandeja de pendientes por delegación](docs/estabilizacion-pendientes-2026-09-05.md), verificada con usuarios sin equipo y solicitudes de otros años.
+- Consultar el [contrato de fechas de permisos](docs/estabilizacion-fechas-2026-09-05.md), incluidas las restricciones de entrada y la verificación de zonas horarias.
 - Añadir integración con PostgreSQL real y pruebas E2E; ejecutar las pruebas existentes con `npm run test --workspace backend`.
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.

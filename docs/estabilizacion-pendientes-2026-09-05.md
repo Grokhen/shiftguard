@@ -2,6 +2,8 @@
 
 La bandeja del supervisor agrupaba consultas por equipo y año actual. Eso omitía a usuarios sin equipo y solicitudes de otros años, y repetía permisos de usuarios con varios equipos.
 
+La [tanda de fechas](estabilizacion-fechas-2026-09-05.md) completa después la validación de días, los filtros anuales y la presentación en distintas zonas horarias. El resto de este documento conserva el alcance de la bandeja.
+
 ## Cambios
 
 - Nuevo `GET /api/permisos/pendientes`, reservado a supervisores y administradores. Consulta los permisos directamente, por estado `PENDIENTE`, sin condiciones de membresía o año.

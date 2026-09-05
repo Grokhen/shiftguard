@@ -1,9 +1,11 @@
 import { Router } from 'express'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
 import { serializableTransaction } from '../../utils/transaction'
 import { httpError } from '../../utils/httpError'
+import { calendarYearSchema, permissionYearFilter } from '../../utils/calendarDates'
 import {
   ensureAdmin,
   ensureSupervisorOrAdmin,
@@ -35,7 +37,7 @@ const listarEquiposQuerySchema = z.object({
 })
 
 const listarPermisosEquipoQuerySchema = z.object({
-  anio: z.coerce.number().int().optional(),
+  anio: calendarYearSchema.optional(),
 })
 
 const usuarioSeguroSelect = {
@@ -286,15 +288,10 @@ router.get('/:id/permisos', async (req, res, next) => {
       return res.json([])
     }
 
-    const where: any = {
+    const where: Prisma.PermisoWhereInput = {
       usuario_id: { in: idsUsuarios },
       ...(!isAdmin ? { Usuario: { delegacion_id: user.deleg } } : {}),
-    }
-
-    if (query.anio) {
-      const from = new Date(query.anio, 0, 1)
-      const to = new Date(query.anio, 11, 31)
-      where.fecha_inicio = { gte: from, lte: to }
+      ...(query.anio !== undefined ? permissionYearFilter(query.anio) : {}),
     }
 
     const permisos = await prisma.permiso.findMany({

@@ -4,6 +4,11 @@ import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
 import {
+  calendarDateSchema,
+  calendarYearSchema,
+  permissionYearFilter,
+} from '../../utils/calendarDates'
+import {
   ensureSupervisorOrAdmin,
   getUserRoleCodigo,
   isAdminCodigo,
@@ -14,13 +19,11 @@ const router = Router()
 
 router.use(authRequired)
 
-const iso = z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha inválida')
-
 const crearPermisoSchema = z
   .object({
     tipo_id: z.number().int().positive(),
-    fecha_inicio: iso,
-    fecha_fin: iso,
+    fecha_inicio: calendarDateSchema,
+    fecha_fin: calendarDateSchema,
     observaciones: z.string().max(500).optional(),
   })
   .refine((d) => new Date(d.fecha_fin) >= new Date(d.fecha_inicio), {
@@ -29,7 +32,7 @@ const crearPermisoSchema = z
   })
 
 const listarMisPermisosQuerySchema = z.object({
-  anio: z.coerce.number().int().optional(), // ?anio=2025
+  anio: calendarYearSchema.optional(), // ?anio=2025
   tipo_id: z.coerce.number().int().optional(), // ?tipo_id=1
   estado_id: z.coerce.number().int().optional(), // ?estado_id=2
 })
@@ -106,14 +109,9 @@ router.get('/mios', async (req, res, next) => {
 
     const query = listarMisPermisosQuerySchema.parse(req.query)
 
-    const where: any = {
+    const where: Prisma.PermisoWhereInput = {
       usuario_id: user.sub,
-    }
-
-    if (query.anio) {
-      const from = new Date(query.anio, 0, 1)
-      const to = new Date(query.anio, 11, 31)
-      where.fecha_inicio = { gte: from, lte: to }
+      ...(query.anio !== undefined ? permissionYearFilter(query.anio) : {}),
     }
 
     if (query.tipo_id) {
