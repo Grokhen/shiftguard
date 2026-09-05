@@ -31,7 +31,9 @@ Las pruebas de rollback instalan y retiran una restricción CHECK únicamente en
 - 288 pruebas de la suite habitual correctas, incluidas 14 nuevas sobre aislamiento del destino de integración.
 - Tipos de integración y compilación backend correctos.
 - El ejecutor rechaza la ausencia de `TEST_DATABASE_URL` antes de intentar una conexión.
-- La ejecución de los ocho casos con PostgreSQL y la comprobación completa de CI están pendientes de la primera publicación de esta tanda.
+- Los ocho casos de integración pasan con PostgreSQL 16 en [CI, ejecución 13](https://github.com/Grokhen/shiftguard/actions/runs/33980717516), sobre el commit `76e91b2`. En total: 288 pruebas habituales y ocho de integración correctas.
+- CI confirma la aplicación de la migración inicial en un esquema nuevo y su eliminación al terminar. Las altas y ediciones concurrentes ejecutan tres transacciones para dos peticiones: la operación abortada se reintenta y vuelve a validar el solape.
+- También pasan en CI la generación de Prisma, los tipos de integración, ambas compilaciones y el lint frontend. Persisten los avisos previos de antigüedad de los datos de navegadores.
 
 En este equipo Docker está instalado en la sesión del usuario, pero el intento de inicio no ha dejado un motor accesible. No se han instalado dependencias ni modificado la configuración de Windows para remediarlo.
 

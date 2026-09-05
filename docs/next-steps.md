@@ -2,7 +2,7 @@
 
 Este documento lista las siguientes tareas sugeridas para continuar el proyecto despues del traspaso.
 
-Actualizacion del 5 de septiembre de 2026: consultar la [primera tanda de estabilizacion](C:/Users/lacro/Desktop/Proyectos/ShiftGuard/docs/estabilizacion-2026-09-05.md) y la ultima tanda de [fechas y rangos de guardias](estabilizacion-guardias-fechas-2026-09-05.md) para el estado de las correcciones y su verificacion. La lista siguiente conserva el contexto de trabajo anterior a la auditoria.
+Actualizacion del 5 de septiembre de 2026: consultar la [primera tanda de estabilizacion](C:/Users/lacro/Desktop/Proyectos/ShiftGuard/docs/estabilizacion-2026-09-05.md) y la [integracion con PostgreSQL verificada en CI](integracion-postgresql-2026-09-05.md) para el estado de las correcciones y su verificacion. Ya se han comprobado persistencia, rollback y concurrencia de guardias; siguen pendientes traslados y decisiones concurrentes de permisos. La lista siguiente conserva el contexto de trabajo anterior a la auditoria.
 
 ## Estado de partida
 
