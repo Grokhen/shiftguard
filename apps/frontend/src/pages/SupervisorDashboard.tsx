@@ -29,14 +29,8 @@ import {
   formatDateLong,
   formatTime,
   isCalendarDateActive,
+  isShiftActive,
 } from '../utils/date'
-
-function isNowBetween(startIso: string, endIso: string): boolean {
-  const now = new Date()
-  const start = new Date(startIso)
-  const end = new Date(endIso)
-  return start.getTime() <= now.getTime() && now.getTime() <= end.getTime()
-}
 
 export function SupervisorDashboard() {
   const { accessToken, user } = useAuth()
@@ -85,7 +79,7 @@ export function SupervisorDashboard() {
         const guardiasDelegacion: Guardia[] = await getGuardiasDelegacion(accessToken, user.deleg)
 
         const guardiasActivasAhora = guardiasDelegacion.filter((g) =>
-          isNowBetween(g.fecha_inicio, g.fecha_fin),
+          isShiftActive(g.fecha_inicio, g.fecha_fin),
         )
 
         const detalles = await Promise.all(

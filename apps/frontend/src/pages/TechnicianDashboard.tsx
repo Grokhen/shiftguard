@@ -9,7 +9,7 @@ import {
   type Permiso,
   type TipoPermiso,
 } from '../services/permisosService'
-import { formatDateLong, formatTime, formatCalendarDateRange } from '../utils/date'
+import { formatDateLong, formatTime, formatCalendarDateRange, isShiftActive } from '../utils/date'
 
 export function TechnicianDashboard() {
   const { accessToken } = useAuth()
@@ -67,11 +67,9 @@ export function TechnicianDashboard() {
     const now = new Date()
     const nowTime = now.getTime()
 
-    const currentShift = shifts.find((asig) => {
-      const startTime = new Date(asig.Guardia.fecha_inicio).getTime()
-      const endTime = new Date(asig.Guardia.fecha_fin).getTime()
-      return startTime <= nowTime && nowTime <= endTime
-    })
+    const currentShift = shifts.find((asig) =>
+      isShiftActive(asig.Guardia.fecha_inicio, asig.Guardia.fecha_fin, now),
+    )
 
     if (currentShift) {
       return currentShift
@@ -188,9 +186,7 @@ export function TechnicianDashboard() {
   const now = new Date()
 
   const isCurrentShift =
-    !!nextShift &&
-    new Date(nextShift.Guardia.fecha_inicio).getTime() <= now.getTime() &&
-    now.getTime() <= new Date(nextShift.Guardia.fecha_fin).getTime()
+    !!nextShift && isShiftActive(nextShift.Guardia.fecha_inicio, nextShift.Guardia.fecha_fin, now)
 
   return (
     <div className="flex flex-col gap-6">

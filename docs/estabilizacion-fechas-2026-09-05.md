@@ -2,6 +2,8 @@
 
 Los permisos se almacenan como `DATE` en PostgreSQL. La validación anterior usaba `Date.parse`, que puede normalizar días inexistentes y aceptar formatos ambiguos. Los filtros anuales solo comprobaban cuándo empezaba el permiso y construían sus límites con la zona horaria del servidor.
 
+La tanda posterior corrige las [fechas y los rangos de guardias](estabilizacion-guardias-fechas-2026-09-05.md). Este documento conserva el alcance y la verificación de la tanda de permisos.
+
 ## Cambios
 
 - El alta de permisos exige días válidos con formato `YYYY-MM-DD`, con año mayor que cero. Se rechazan fechas inexistentes, formatos locales y timestamps con hora o zona horaria. Se permiten permisos de un solo día; el final no puede preceder al inicio.

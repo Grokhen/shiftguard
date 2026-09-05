@@ -29,6 +29,10 @@ export function formatDateRange(startIso: string, endIso: string): string {
   return `${formatDate(startIso)} — ${formatDate(endIso)}`
 }
 
+export function isShiftActive(startIso: string, endIso: string, now = new Date()): boolean {
+  return new Date(startIso).getTime() <= now.getTime() && now.getTime() < new Date(endIso).getTime()
+}
+
 // Prisma serializes DATE columns as midnight UTC. Preserve that calendar day for display.
 function calendarDate(iso: string): Date {
   return new Date(`${iso.slice(0, 10)}T00:00:00.000Z`)

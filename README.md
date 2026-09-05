@@ -121,6 +121,8 @@ Las cuentas creadas desde administración y las contraseñas restablecidas por u
 ### 3. Planificar guardia (Supervisor)
 - El formulario “Crear nueva guardia” en [`SupervisorDashboard`](apps/frontend/src/pages/SupervisorDashboard.tsx) crea la guardia y sus asignaciones en una sola llamada a `crearGuardia`, dentro de una transacción backend.
 - Validaciones locales impiden asignar fechas inconsistentes o duplicar roles (ver lógica en `handleCrearGuardia`).
+- La API exige fechas y horas ISO con zona explícita (`Z` o `±HH:MM`), días válidos y hasta tres decimales de segundo. El final debe ser posterior al inicio al convertir ambos a UTC. El frontend ya envía este formato.
+- Los listados `/api/guardias`, `/api/guardias/mias` y `/api/guardias/delegacion/:delegacionId` admiten `desde` y `hasta` con el mismo formato. Incluyen cualquier guardia que se cruce con el rango, aunque haya empezado antes. El inicio se incluye y el final se excluye; si se envían ambos límites, `hasta` debe ser posterior a `desde`. Sin límites se conserva el listado completo dentro del alcance autorizado.
 
 ### 4. Solicitar y aprobar permisos
 - Técnicos usan el formulario gestionado por [`handleSolicitarPermiso`](apps/frontend/src/pages/TechnicianDashboard.tsx) que llama a [`crearPermiso`](apps/frontend/src/services/permisosService.ts).
@@ -154,6 +156,7 @@ La [rama de estabilización](https://github.com/Grokhen/shiftguard/tree/codex/se
 - Consultar el [cambio obligatorio de contraseña](docs/estabilizacion-password-reset-2026-09-05.md) y sus consideraciones de despliegue.
 - Consultar la [bandeja de pendientes por delegación](docs/estabilizacion-pendientes-2026-09-05.md), verificada con usuarios sin equipo y solicitudes de otros años.
 - Consultar el [contrato de fechas de permisos](docs/estabilizacion-fechas-2026-09-05.md), incluidas las restricciones de entrada y la verificación de zonas horarias.
+- Consultar las [fechas y los rangos de guardias](docs/estabilizacion-guardias-fechas-2026-09-05.md), incluidos los límites del intervalo y la compatibilidad de clientes externos.
 - Añadir integración con PostgreSQL real y pruebas E2E; ejecutar las pruebas existentes con `npm run test --workspace backend`.
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.

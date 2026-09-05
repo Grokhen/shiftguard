@@ -16,7 +16,16 @@ const router = Router()
 
 router.use(authRequired)
 
-const iso = z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha inválida')
+const fechaHoraGuardiaSchema = z.iso
+  .datetime({
+    offset: true,
+    error: 'Usa una fecha y hora ISO válida con zona horaria (Z o ±HH:MM)',
+  })
+  .refine((value) => !/\.\d{4}/.test(value), 'Usa como máximo tres decimales de segundo')
+  .refine((value) => {
+    const year = new Date(value).getUTCFullYear()
+    return !value.startsWith('0000-') && year >= 1 && year <= 9999
+  }, 'El año debe estar entre 1 y 9999, también al convertirlo a UTC')
 
 const asignacionGuardiaInputSchema = z.object({
   usuario_id: z.number().int().positive(),
@@ -25,8 +34,8 @@ const asignacionGuardiaInputSchema = z.object({
 
 const crearGuardiaSchema = z
   .object({
-    fecha_inicio: iso,
-    fecha_fin: iso,
+    fecha_inicio: fechaHoraGuardiaSchema,
+    fecha_fin: fechaHoraGuardiaSchema,
     estado: z.string().max(20).optional(),
     asignaciones: z.array(asignacionGuardiaInputSchema).optional(),
   })
@@ -35,22 +44,35 @@ const crearGuardiaSchema = z
     message: 'fecha_fin > fecha_inicio',
   })
 
-const listarGuardiasQuerySchema = z.object({
-  desde: iso.optional(),
-  hasta: iso.optional(),
-})
+const listarGuardiasQuerySchema = z
+  .object({
+    desde: fechaHoraGuardiaSchema.optional(),
+    hasta: fechaHoraGuardiaSchema.optional(),
+  })
+  .refine(
+    (query) => !query.desde || !query.hasta || new Date(query.hasta) > new Date(query.desde),
+    {
+      path: ['hasta'],
+      message: 'hasta debe ser posterior a desde',
+    },
+  )
 
-const listarMisGuardiasQuerySchema = z.object({
-  desde: iso.optional(),
-  hasta: iso.optional(),
-})
+function guardiasEnRango(
+  query: z.infer<typeof listarGuardiasQuerySchema>,
+): Prisma.GuardiaWhereInput {
+  // Both shifts and query ranges include the start and exclude the end: [start, end).
+  const where: Prisma.GuardiaWhereInput = {}
+  if (query.desde) where.fecha_fin = { gt: new Date(query.desde) }
+  if (query.hasta) where.fecha_inicio = { lt: new Date(query.hasta) }
+  return where
+}
 
 const asignacionGuardiaSchema = asignacionGuardiaInputSchema
 
 const actualizarGuardiaSchema = z
   .object({
-    fecha_inicio: iso.optional(),
-    fecha_fin: iso.optional(),
+    fecha_inicio: fechaHoraGuardiaSchema.optional(),
+    fecha_fin: fechaHoraGuardiaSchema.optional(),
     estado: z.string().max(20).optional(),
     asignaciones: z.array(asignacionGuardiaInputSchema).optional(),
   })
@@ -150,16 +172,8 @@ router.get('/', async (req, res, next) => {
 
     const query = listarGuardiasQuerySchema.parse(req.query)
 
-    const where: any = { delegacion_id: user.deleg }
-
-    if (query.desde || query.hasta) {
-      where.fecha_inicio = {}
-      if (query.desde) where.fecha_inicio.gte = new Date(query.desde)
-      if (query.hasta) where.fecha_inicio.lte = new Date(query.hasta)
-    }
-
     const guardias = await prisma.guardia.findMany({
-      where,
+      where: { delegacion_id: user.deleg, ...guardiasEnRango(query) },
       orderBy: { fecha_inicio: 'asc' },
     })
 
@@ -186,8 +200,9 @@ router.get('/delegacion/:delegacionId', async (req, res, next) => {
       return res.status(403).json({ error: 'No puedes ver guardias de otra delegación' })
     }
 
+    const query = listarGuardiasQuerySchema.parse(req.query)
     const guardias = await prisma.guardia.findMany({
-      where: { delegacion_id: delegacionId },
+      where: { delegacion_id: delegacionId, ...guardiasEnRango(query) },
       orderBy: { fecha_inicio: 'asc' },
     })
 
@@ -200,20 +215,12 @@ router.get('/delegacion/:delegacionId', async (req, res, next) => {
 router.get('/mias', async (req, res, next) => {
   try {
     const user = req.user as AuthUser
-    const query = listarMisGuardiasQuerySchema.parse(req.query)
-
-    const guardiaFilter: any = {}
-
-    if (query.desde || query.hasta) {
-      guardiaFilter.fecha_inicio = {}
-      if (query.desde) guardiaFilter.fecha_inicio.gte = new Date(query.desde)
-      if (query.hasta) guardiaFilter.fecha_inicio.lte = new Date(query.hasta)
-    }
+    const query = listarGuardiasQuerySchema.parse(req.query)
 
     const asignaciones = await prisma.asignacionGuardia.findMany({
       where: {
         usuario_id: user.sub,
-        Guardia: guardiaFilter,
+        Guardia: guardiasEnRango(query),
       },
       include: {
         Guardia: true,
