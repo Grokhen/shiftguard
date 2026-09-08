@@ -7,7 +7,7 @@ Las pruebas anteriores simulaban Prisma y verificaban las consultas y respuestas
 - `npm run test --workspace backend` conserva la suite habitual, sin conexión a PostgreSQL.
 - `npm run typecheck:integration --workspace backend` comprueba los tipos de las pruebas de integración y sus imports del backend.
 - `npm run test:integration --workspace backend` exige `TEST_DATABASE_URL`, con protocolo PostgreSQL, host loopback y base `shiftguard_test`. Rechaza parámetros adicionales y nunca toma `DATABASE_URL` como alternativa ni carga el `.env` de desarrollo para elegir la base.
-- La base debe existir y el usuario necesita permisos para crear y eliminar sus esquemas. Cada ejecución crea `shiftguard_it_<UUID>`, aplica las migraciones existentes con `prisma migrate deploy` y elimina únicamente ese esquema al terminar, también ante fallos de migraciones o pruebas. No ejecuta reset de bases ni utiliza el seed de usuarios.
+- La base debe existir y el usuario necesita permisos para crear y eliminar sus esquemas. Cada ejecución crea `shiftguard_it_<UUID>`, aplica las migraciones existentes con `prisma migrate deploy` y elimina únicamente ese esquema al terminar, también ante fallos de migraciones o pruebas. No ejecuta reset de bases. La suite de flujos de autenticación comprueba el seed únicamente dentro de ese esquema, con una contraseña aleatoria generada para la ejecución.
 - Una interrupción forzada del proceso puede dejar el esquema temporal pendiente de limpieza. Su nombre se imprime al arrancar; comprobar ese nombre concreto antes de limpiarlo manualmente.
 - Vitest usa una configuración independiente y comprueba el entorno del ejecutor antes de importar las rutas. Las pruebas de integración no se descubren desde la suite habitual.
 
