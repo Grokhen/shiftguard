@@ -109,6 +109,8 @@ La segunda orden requiere `TEST_DATABASE_URL` hacia una base local llamada `shif
 
 La integración cubre persistencia y rollback de guardias, traslados de usuarios/equipos frente a altas concurrentes de miembros o asignaciones, y decisiones simultáneas de permisos. También comprueba el alcance de una decisión cuando el solicitante cambia de delegación entre la lectura y la actualización del permiso.
 
+Los [flujos autenticados de API](docs/estabilizacion-flujos-api-2026-09-08.md) verifican el seed, el login con Argon2 real, el cambio obligatorio y el restablecimiento de contraseña, la revocación de sesiones y el recorrido completo de solicitud y decisión de permisos. La automatización de las pantallas con navegador sigue pendiente.
+
 ### 1. Autenticación de usuario
 ```sh
 curl -X POST http://localhost:3001/api/auth/login \
@@ -165,6 +167,6 @@ La [rama de estabilización](https://github.com/Grokhen/shiftguard/tree/codex/se
 - Consultar la [bandeja de pendientes por delegación](docs/estabilizacion-pendientes-2026-09-05.md), verificada con usuarios sin equipo y solicitudes de otros años.
 - Consultar el [contrato de fechas de permisos](docs/estabilizacion-fechas-2026-09-05.md), incluidas las restricciones de entrada y la verificación de zonas horarias.
 - Consultar las [fechas y los rangos de guardias](docs/estabilizacion-guardias-fechas-2026-09-05.md), incluidos los límites del intervalo y la compatibilidad de clientes externos.
-- Añadir pruebas E2E sobre la [integración con PostgreSQL](docs/integracion-postgresql-2026-09-05.md), que ya cubre guardias, traslados y decisiones concurrentes de permisos.
+- Añadir pruebas E2E con navegador sobre la [integración con PostgreSQL](docs/integracion-postgresql-2026-09-05.md), que ya cubre guardias, traslados, decisiones concurrentes de permisos y [flujos autenticados de API](docs/estabilizacion-flujos-api-2026-09-08.md).
 - Documentar endpoints detalladamente (OpenAPI) y publicar colección para QA.
 - Revisar despliegue con Docker usando [docker-compose.yml](docker-compose.yml) para entornos homogéneos.

@@ -67,6 +67,10 @@ En este equipo Docker está instalado en la sesión del usuario, pero el intento
 - CI confirma los conflictos reales de traslados, las actualizaciones condicionales de permisos y la eliminación del esquema temporal `shiftguard_it_2e6b182330f34ece87e05fcb295808d0`. También pasan generación de Prisma, tipos de integración, compilaciones backend/frontend y lint frontend.
 - Localmente pasan las 288 pruebas habituales, los tipos de integración y la compilación backend con Node 22.23.2. Vitest necesitó ejecutarse fuera del sandbox por una denegación de lectura de esbuild al cargar la configuración. La ejecución con PostgreSQL se verificó en CI: esta sesión no tiene `TEST_DATABASE_URL` definida. No se instalaron dependencias locales ni se modificaron secretos o migraciones.
 
+### Flujos autenticados de API (8 de septiembre)
+
+La tanda del 8 de septiembre añade nueve pruebas de [flujos autenticados de API](estabilizacion-flujos-api-2026-09-08.md), desde el seed y el login hasta el cambio de contraseña, la revocación de sesiones y la solicitud y decisión de permisos. El commit `c81b121` pasa en [CI, ejecución 18](https://github.com/Grokhen/shiftguard/actions/runs/34269407893): **324 pruebas correctas**, 288 habituales y 36 de integración. CI confirma también los tipos, ambas compilaciones, el lint y la eliminación del esquema temporal.
+
 ## Pendientes
 
-Añadir pruebas E2E de los flujos completos. Definir las reglas de disponibilidad ante ausencias aprobadas y la actualización temporal de los paneles. La rama sigue pendiente de revisión e integración en `main`; añadir estas pruebas no despliega la aplicación.
+Añadir pruebas E2E con navegador de los flujos completos. Definir las reglas de disponibilidad ante ausencias aprobadas y la actualización temporal de los paneles. La rama sigue pendiente de revisión e integración en `main`; añadir estas pruebas no despliega la aplicación.
