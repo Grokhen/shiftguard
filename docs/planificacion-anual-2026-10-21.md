@@ -42,9 +42,11 @@ El nombre del sustituto queda como propuesta de la solicitud. Resolver el confli
 
 ## Verificación
 
-- **338 pruebas habituales y 45 de integración PostgreSQL correctas: 383 en total.**
+- **340 pruebas habituales y 45 de integración PostgreSQL: 385 en total.**
 - Integración: persistencia cíclica de una pareja, repetición idempotente, último intervalo del año sin nuevas semanas en enero, rollback real después de eliminar asignaciones, roles/usuarios activos/delegación y dos planificaciones competidoras con aborto y reintento reales.
 - Pruebas de fechas: frecuencia de tres semanas durante el cambio de hora, coincidencia entre vista previa y servidor, y cambio de año en Madrid antes que UTC.
 - Pruebas del cliente: notificaciones de guardado, cambios entre pestañas, foco y retirada de listeners.
 - Tipos de integración, compilaciones backend/frontend y lint frontend correctos. Sin dependencias ni migraciones nuevas. Los esquemas temporales de integración se eliminaron.
 - Navegador local: máximo 53 (54 inválido), frecuencia 3 desde el 23 de noviembre con resultado 23 de noviembre y 14 de diciembre; pareja Nerea/Nuevo guardada tras confirmar reemplazo. La solicitud de Alex del 23–24 de noviembre permanece pendiente y pierde el resaltado en la otra pestaña sin pulsar Actualizar.
+
+La primera ejecución CI detectó que los reintentos inmediatos podían agotar el límite antes de terminar el commit competidor. Se añaden esperas de 20 y 40 ms únicamente para `P2034`, conservando el máximo de tres intentos y el 409 al agotarlos. Las carreras verifican entre tres y seis transacciones para dos peticiones (al menos un reintento y como máximo tres intentos por petición), manteniendo todas las comprobaciones de respuestas, persistencia y ausencia de cambios parciales. Dos pruebas con reloj controlado verifican las esperas y que otros errores no se reintentan.

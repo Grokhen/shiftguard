@@ -18,6 +18,9 @@ export async function serializableTransaction<T>(
       if (attempt === 2) {
         throw httpError('Los datos han cambiado. Vuelve a intentar la operación.', 409)
       }
+      // Let the competing commit finish before taking a fresh snapshot. Immediate
+      // retries can otherwise exhaust all attempts while that commit is pending.
+      await new Promise(resolve => setTimeout(resolve, 20 * (attempt + 1)))
     }
   }
   throw new Error('No se pudo completar la transacción')

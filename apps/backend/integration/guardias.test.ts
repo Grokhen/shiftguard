@@ -208,7 +208,8 @@ describe('guardia persistence and real PostgreSQL transactions', () => {
       const responses = await Promise.all([send(), send()])
       expect(responses.map((response) => response.status).sort()).toEqual([201, 400])
       expect(responses.find((response) => response.status === 400)!.body.error).toMatch(/solapada/)
-      expect(race.spy).toHaveBeenCalledTimes(3)
+      expect(race.spy.mock.calls.length).toBeGreaterThanOrEqual(3)
+      expect(race.spy.mock.calls.length).toBeLessThanOrEqual(6)
       expect(await prisma.guardia.count({ where: { delegacion_id: data.delegation.id } })).toBe(1)
       expect(await prisma.asignacionGuardia.count({ where: { usuario_id: data.user.id } })).toBe(1)
     } finally {
@@ -231,7 +232,8 @@ describe('guardia persistence and real PostgreSQL transactions', () => {
         ),
       )
       expect(responses.map((response) => response.status).sort()).toEqual([200, 400])
-      expect(race.spy).toHaveBeenCalledTimes(3)
+      expect(race.spy.mock.calls.length).toBeGreaterThanOrEqual(3)
+      expect(race.spy.mock.calls.length).toBeLessThanOrEqual(6)
       const shifts = await prisma.guardia.findMany({ where: { delegacion_id: data.delegation.id } })
       expect(shifts).toHaveLength(2)
       expect(

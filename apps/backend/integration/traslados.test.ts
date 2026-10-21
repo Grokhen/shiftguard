@@ -210,7 +210,8 @@ describe('transfers racing with new relationships in PostgreSQL', () => {
           [409, 201],
         ]).toContainEqual([moveResponse.status, memberResponse.status])
         expect(race.arrivals).toBe(2)
-        expect(race.spy).toHaveBeenCalledTimes(3)
+        expect(race.spy.mock.calls.length).toBeGreaterThanOrEqual(3)
+        expect(race.spy.mock.calls.length).toBeLessThanOrEqual(6)
         const user = await prisma.usuario.findUniqueOrThrow({
           where: { id: data.technician.user.id },
         })
@@ -271,7 +272,8 @@ describe('transfers racing with new relationships in PostgreSQL', () => {
           [409, success],
         ]).toContainEqual([moveResponse.status, shiftResponse.status])
         expect(race.arrivals).toBe(2)
-        expect(race.spy).toHaveBeenCalledTimes(3)
+        expect(race.spy.mock.calls.length).toBeGreaterThanOrEqual(3)
+        expect(race.spy.mock.calls.length).toBeLessThanOrEqual(6)
         const user = await prisma.usuario.findUniqueOrThrow({
           where: { id: data.technician.user.id },
         })

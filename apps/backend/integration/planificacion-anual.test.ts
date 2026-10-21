@@ -108,7 +108,8 @@ it('serializes competing cyclic plans without silently replacing the winner', as
     const responses = await Promise.all([data.plan(), data.plan({ ...data.input, principal_id: data.other.user.id })])
     expect(responses.map(r => r.status).sort()).toEqual([200, 409])
     expect(barrier.arrivals).toBe(2)
-    expect(spy).toHaveBeenCalledTimes(3)
+    expect(spy.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(6)
     const winner = responses[0].status === 200 ? data.primary.user.id : data.other.user.id
     const rows = await data.assignments()
     expect(rows.filter(a => a.rol_guardia_id === data.role.id).every(a => a.usuario_id === winner)).toBe(true)
