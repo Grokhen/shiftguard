@@ -1,27 +1,24 @@
 // One calendar timezone for all delegations until per-delegation timezones are defined.
 export const SHIFT_TIME_ZONE = 'Europe/Madrid'
 const day = 86_400_000
-const partsFormatter = new Intl.DateTimeFormat('en-GB', {
-  timeZone: SHIFT_TIME_ZONE,
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-})
+const offsetFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: SHIFT_TIME_ZONE, timeZoneName: 'longOffset' })
 
 // Interpret a civil day as midnight in Madrid, independently of the server's TZ.
 export function shiftDayStart(value: string): Date {
   const target = new Date(`${value}T00:00:00.000Z`).getTime()
   let instant = target
   for (let i = 0; i < 3; i++) {
-    const parts = Object.fromEntries(partsFormatter.formatToParts(new Date(instant)).map(p => [p.type, p.value]))
-    const wallClock = new Date(`${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.000Z`).getTime()
-    instant += target - wallClock
+    const zone = offsetFormatter.formatToParts(new Date(instant)).find(p => p.type === 'timeZoneName')!.value
+    const offset = /^GMT([+-])(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(zone)
+    const seconds = offset ? (Number(offset[2]) * 3600 + Number(offset[3]) * 60 + Number(offset[4] ?? 0)) * (offset[1] === '+' ? 1 : -1) : 0
+    instant = target - seconds * 1000
   }
   return new Date(instant)
 }
 
 export function permissionShiftRange(start: string, end: string) {
   const nextDay = new Date(new Date(`${end.slice(0, 10)}T00:00:00.000Z`).getTime() + day)
-  return { desde: shiftDayStart(start.slice(0, 10)), hasta: shiftDayStart(nextDay.toISOString().slice(0, 10)) }
+  return { desde: shiftDayStart(start.slice(0, 10)), hasta: shiftDayStart(nextDay.toISOString().split('T')[0]) }
 }
 
 export function calendarWeeks(year: number) {

@@ -5,15 +5,28 @@ type ApiError = {
   error?: string
   message?: string
   code?: string
+  conflictos_guardias?: { id: number; fecha_inicio: string; fecha_fin: string }[]
+}
+
+export class ApiRequestError extends Error {
+  status: number
+  details: ApiError
+  constructor(message: string, status: number, details: ApiError) {
+    super(message)
+    this.status = status
+    this.details = details
+  }
 }
 
 async function handleResponse<T>(res: Response, path: string, token: string): Promise<T> {
   if (res.status === 401) notifySessionInvalidated(token)
   if (!res.ok) {
     let message = `Error ${res.status} al llamar a ${path}`
+    let details: ApiError = {}
 
     try {
       const data = (await res.json()) as ApiError
+      details = data
       if (res.status === 403 && data?.code === 'PASSWORD_CHANGE_REQUIRED') {
         notifyPasswordChangeRequired(token)
       }
@@ -22,7 +35,7 @@ async function handleResponse<T>(res: Response, path: string, token: string): Pr
       // mensaje de error genérico
     }
 
-    throw new Error(message)
+    throw new ApiRequestError(message, res.status, details)
   }
 
   if (res.status === 204) return undefined as T

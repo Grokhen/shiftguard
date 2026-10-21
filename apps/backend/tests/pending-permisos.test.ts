@@ -9,6 +9,7 @@ const db = vi.hoisted(() => ({
   permiso: { findMany: vi.fn() },
   equipo: { findMany: vi.fn() },
   miembroEquipo: { findMany: vi.fn() },
+  asignacionGuardia: { findMany: vi.fn() },
 }))
 vi.mock('../src/prisma', () => ({ prisma: db }))
 
@@ -31,6 +32,7 @@ function session(roleCode = 'SUPERVISOR', deleg = 1, requiere_reset = false) {
 beforeEach(() => {
   vi.resetAllMocks()
   db.permiso.findMany.mockResolvedValue([])
+  db.asignacionGuardia.findMany.mockResolvedValue([])
 })
 
 describe('delegation pending-permission inbox', () => {
@@ -63,8 +65,8 @@ describe('delegation pending-permission inbox', () => {
   it('returns records from different years without multiplying a request by team memberships', async () => {
     // Persistence returns one record per permission, regardless of the applicant's teams.
     db.permiso.findMany.mockResolvedValue([
-      { id: 1, usuario_id: 20, fecha_inicio: '2025-12-30', fecha_fin: '2026-01-03' },
-      { id: 2, usuario_id: 21, fecha_inicio: '2027-01-10', fecha_fin: '2027-01-12' },
+      { id: 1, usuario_id: 20, Usuario: { delegacion_id: 1 }, fecha_inicio: new Date('2025-12-30'), fecha_fin: new Date('2026-01-03') },
+      { id: 2, usuario_id: 21, Usuario: { delegacion_id: 1 }, fecha_inicio: new Date('2027-01-10'), fecha_fin: new Date('2027-01-12') },
     ])
     const response = await request(app)
       .get('/api/permisos/pendientes')

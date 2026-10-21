@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
+import { permissionShiftConflicts } from './shiftConflicts'
 import {
   calendarDateSchema,
   calendarYearSchema,
@@ -25,6 +26,8 @@ const crearPermisoSchema = z
     fecha_inicio: calendarDateSchema,
     fecha_fin: calendarDateSchema,
     observaciones: z.string().max(500).optional(),
+    sustituto_nombre: z.string().trim().max(200).optional(),
+    confirmar_conflicto_guardias: z.boolean().optional(),
   })
   .refine((d) => new Date(d.fecha_fin) >= new Date(d.fecha_inicio), {
     path: ['fecha_fin'],
@@ -46,6 +49,20 @@ const listarPendientesQuerySchema = z
 const decidirPermisoSchema = z.object({
   estado_id: z.number().int().positive(),
   observaciones: z.string().max(500).optional(),
+})
+
+const comprobarGuardiasSchema = z.object({
+  fecha_inicio: calendarDateSchema,
+  fecha_fin: calendarDateSchema,
+}).strict().refine(d => d.fecha_fin >= d.fecha_inicio, { path: ['fecha_fin'], message: 'fecha_fin >= fecha_inicio' })
+
+router.post('/comprobar-guardias', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    const dates = comprobarGuardiasSchema.parse(req.body)
+    const [conflicts] = await permissionShiftConflicts([{ ...dates, usuario_id: user.sub, delegacion_id: user.deleg }])
+    res.json({ conflictos_guardias: conflicts })
+  } catch (error) { next(error) }
 })
 
 router.get('/tipos', async (_req, res, next) => {
@@ -97,7 +114,11 @@ router.get('/pendientes', async (req, res, next) => {
       },
       orderBy: [{ fecha_inicio: 'asc' }, { id: 'asc' }],
     })
-    res.json(permisos)
+    const conflicts = await permissionShiftConflicts(permisos.map(p => ({
+      usuario_id: p.usuario_id, delegacion_id: p.Usuario.delegacion_id,
+      fecha_inicio: p.fecha_inicio.toISOString().slice(0, 10), fecha_fin: p.fecha_fin.toISOString().slice(0, 10),
+    })))
+    res.json(permisos.map((permission, i) => ({ ...permission, conflictos_guardias: conflicts[i] })))
   } catch (error) {
     next(error)
   }
@@ -203,6 +224,16 @@ router.post('/', async (req, res, next) => {
         .json({ error: 'No existe el estado PENDIENTE en la base de datos. Revisa el seed.' })
     }
 
+    const [conflicts] = await permissionShiftConflicts([{
+      usuario_id: user.sub, delegacion_id: user.deleg, fecha_inicio: dto.fecha_inicio, fecha_fin: dto.fecha_fin,
+    }])
+    if (conflicts.length && !dto.confirmar_conflicto_guardias) {
+      return res.status(409).json({
+        code: 'SHIFT_CONFLICT', error: 'Tienes guardia en ese periodo. Confirma la solicitud e indica un sustituto si lo tienes.',
+        conflictos_guardias: conflicts,
+      })
+    }
+
     const created = await prisma.permiso.create({
       data: {
         usuario_id: user.sub,
@@ -211,6 +242,7 @@ router.post('/', async (req, res, next) => {
         fecha_inicio: new Date(dto.fecha_inicio),
         fecha_fin: new Date(dto.fecha_fin),
         observaciones: dto.observaciones,
+        sustituto_nombre: dto.sustituto_nombre || null,
         creado_por: user.sub,
       },
       include: {
@@ -219,7 +251,7 @@ router.post('/', async (req, res, next) => {
       },
     })
 
-    res.status(201).json(created)
+    res.status(201).json({ ...created, conflictos_guardias: conflicts })
   } catch (e) {
     next(e)
   }

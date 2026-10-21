@@ -122,6 +122,7 @@ model Permiso {
     creado_por    Int?
     decidido_por  Int?
     observaciones String?
+    sustituto_nombre String? @db.VarChar(200)
 
     Usuario Usuario       @relation("PermisosDeUsuario", fields: [usuario_id], references: [id])
     Tipo    TipoPermiso   @relation(fields: [tipo_id], references: [id])

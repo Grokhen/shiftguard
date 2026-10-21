@@ -123,6 +123,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined)
   mockRoleLookup()
   prismaMock.$transaction.mockImplementation((work) => work(prismaMock))
+  prismaMock.asignacionGuardia.findMany.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -1027,6 +1028,7 @@ describe('permisos', () => {
         fecha_fin: new Date('2026-07-05'),
         observaciones: 'Verano',
         creado_por: 10,
+        sustituto_nombre: null,
       },
       include: {
         Tipo: true,

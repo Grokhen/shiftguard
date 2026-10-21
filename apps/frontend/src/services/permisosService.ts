@@ -20,6 +20,8 @@ export type Permiso = {
   fecha_inicio: string
   fecha_fin: string
   observaciones: string | null
+  sustituto_nombre?: string | null
+  conflictos_guardias?: ConflictoGuardia[]
 
   Tipo: TipoPermiso
   Estado: EstadoPermiso
@@ -56,6 +58,14 @@ export type CrearPermisoInput = {
   fecha_inicio: string
   fecha_fin: string
   observaciones?: string
+  sustituto_nombre?: string
+  confirmar_conflicto_guardias?: boolean
+}
+
+export type ConflictoGuardia = { id: number; fecha_inicio: string; fecha_fin: string }
+
+export async function comprobarGuardiasPermiso(accessToken: string, fecha_inicio: string, fecha_fin: string) {
+  return authorizedPost<{ conflictos_guardias: ConflictoGuardia[] }>('/api/permisos/comprobar-guardias', accessToken, { fecha_inicio, fecha_fin })
 }
 
 export async function crearPermiso(

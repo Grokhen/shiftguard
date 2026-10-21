@@ -15,6 +15,7 @@ const db = vi.hoisted(() => ({
   estadoPermiso: { findUnique: vi.fn() },
   equipo: { findUnique: vi.fn() },
   miembroEquipo: { findMany: vi.fn() },
+  asignacionGuardia: { findMany: vi.fn() },
 }))
 vi.mock('../src/prisma', () => ({ prisma: db }))
 
@@ -42,6 +43,7 @@ beforeEach(() => {
   db.permiso.findMany.mockResolvedValue([])
   db.equipo.findUnique.mockResolvedValue({ id: 1, delegacion_id: 1 })
   db.miembroEquipo.findMany.mockResolvedValue([{ usuario_id: 10 }])
+  db.asignacionGuardia.findMany.mockResolvedValue([])
 })
 afterEach(() => vi.unstubAllEnvs())
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getMyShifts, type AsignacionGuardia } from '../services/guardiasService'
@@ -6,11 +6,15 @@ import {
   getMyPermisos,
   getTiposPermiso,
   crearPermiso,
+  comprobarGuardiasPermiso,
+  type CrearPermisoInput,
+  type ConflictoGuardia,
   type Permiso,
   type TipoPermiso,
 } from '../services/permisosService'
 import { formatDateLong, formatTime, formatCalendarDateRange, isShiftActive } from '../utils/date'
 import { shiftDay } from '../utils/shiftCalendar'
+import { ApiRequestError } from '../services/apiClient'
 
 export function TechnicianDashboard() {
   const { accessToken } = useAuth()
@@ -28,6 +32,14 @@ export function TechnicianDashboard() {
   const [formError, setFormError] = useState<string | null>(null)
   const [formSuccess, setFormSuccess] = useState<string | null>(null)
   const [isSubmittingPermiso, setIsSubmittingPermiso] = useState(false)
+  const [warning, setWarning] = useState<{ input: CrearPermisoInput; shifts: ConflictoGuardia[] } | null>(null)
+  const [substitute, setSubstitute] = useState('')
+  const warningDialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const dialog = warningDialog.current
+    if (warning && dialog && !dialog.open) dialog.showModal()
+    else if (!warning && dialog?.open) dialog.close()
+  }, [warning])
 
   useEffect(() => {
     if (!accessToken) return
@@ -126,19 +138,17 @@ export function TechnicianDashboard() {
     setIsSubmittingPermiso(true)
 
     try {
-      const created = await crearPermiso(accessToken, {
+      const input = {
         tipo_id: Number(formTipoId),
         fecha_inicio: formFechaInicio,
         fecha_fin: formFechaFin,
         observaciones: formObservaciones || undefined,
-      })
-
-      setPermisos((prev) => [created, ...prev])
-
-      setFormSuccess('Permiso solicitado correctamente.')
-      setFormFechaInicio('')
-      setFormFechaFin('')
-      setFormObservaciones('')
+      }
+      const checked = await comprobarGuardiasPermiso(accessToken, input.fecha_inicio, input.fecha_fin)
+      if (checked.conflictos_guardias.length) {
+        setSubstitute('')
+        setWarning({ input, shifts: checked.conflictos_guardias })
+      } else await persistRequest(input)
     } catch (err) {
       console.error(err)
       setFormError(
@@ -147,6 +157,32 @@ export function TechnicianDashboard() {
     } finally {
       setIsSubmittingPermiso(false)
     }
+  }
+
+  async function persistRequest(input: CrearPermisoInput) {
+    if (!accessToken) return
+    try {
+      const created = await crearPermiso(accessToken, input)
+      setPermisos(prev => [created, ...prev])
+      setFormSuccess('Permiso solicitado correctamente.')
+      setFormFechaInicio(''); setFormFechaFin(''); setFormObservaciones('')
+      setWarning(null); setSubstitute('')
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.details.code === 'SHIFT_CONFLICT' && err.details.conflictos_guardias?.length) {
+        setSubstitute(input.sustituto_nombre ?? '')
+        setWarning({ input, shifts: err.details.conflictos_guardias })
+      } else {
+        setFormError(err instanceof Error ? err.message : 'No se pudo enviar el permiso.')
+        setWarning(null)
+      }
+    }
+  }
+
+  async function confirmRequest() {
+    if (!warning || isSubmittingPermiso) return
+    setIsSubmittingPermiso(true)
+    try { await persistRequest({ ...warning.input, confirmar_conflicto_guardias: true, sustituto_nombre: substitute.trim() || undefined }) }
+    finally { setIsSubmittingPermiso(false) }
   }
 
   if (isLoading) {
@@ -191,6 +227,23 @@ export function TechnicianDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      <dialog ref={warningDialog} aria-labelledby="shift-conflict-title" onCancel={event => {
+        if (isSubmittingPermiso) event.preventDefault()
+        else setWarning(null)
+      }} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl bg-white p-6 text-slate-900 shadow-xl backdrop:bg-slate-900/50">
+        <h2 id="shift-conflict-title" className="mb-3 text-lg font-semibold">Tienes guardia en ese periodo</h2>
+        <p className="mb-3 text-sm text-slate-600">La solicitud coincide con estas guardias. Puedes proponer un compañero sustituto o enviarla para que el supervisor busque cobertura.</p>
+        <ul className="mb-4 space-y-1 text-sm">{warning?.shifts.map(shift => <li key={shift.id}>
+          {formatCalendarDateRange(shiftDay(shift.fecha_inicio), shiftDay(new Date(new Date(shift.fecha_fin).getTime() - 1).toISOString()))}
+        </li>)}</ul>
+        <label htmlFor="substitute-name" className="block text-sm font-medium">Compañero que te sustituiría (opcional)</label>
+        <input id="substitute-name" value={substitute} onChange={event => setSubstitute(event.target.value)} maxLength={200} disabled={isSubmittingPermiso} className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm" placeholder="Nombre y apellidos" />
+        <p className="mt-2 text-xs text-slate-500">Es una propuesta. El supervisor debe confirmar la cobertura y modificar la guardia.</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
+          <button type="button" disabled={isSubmittingPermiso} onClick={() => setWarning(null)} className="rounded-lg border px-4 py-2 text-sm">Volver a la solicitud</button>
+          <button type="button" disabled={isSubmittingPermiso} onClick={() => void confirmRequest()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50">{isSubmittingPermiso ? 'Enviando…' : 'Confirmar y solicitar permiso'}</button>
+        </div>
+      </dialog>
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
@@ -370,6 +423,7 @@ export function TechnicianDashboard() {
               <textarea
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
                 rows={3}
+                maxLength={500}
                 value={formObservaciones}
                 onChange={(e) => setFormObservaciones(e.target.value)}
                 placeholder="Ej: Vacaciones de verano, cambio de turno, etc."

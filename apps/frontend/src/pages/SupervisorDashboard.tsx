@@ -464,7 +464,7 @@ export function SupervisorDashboard() {
             {permisosPendientes.map((p) => (
               <li
                 key={p.id}
-                className="flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                className={`flex flex-col gap-2 rounded-lg px-3 py-2 sm:flex-row sm:items-center sm:justify-between ${p.conflictos_guardias?.length ? 'border border-orange-300 bg-orange-50' : 'bg-slate-50'}`}
               >
                 <div>
                   <p className="font-medium text-slate-800">
@@ -478,6 +478,12 @@ export function SupervisorDashboard() {
                     <span className="font-medium">Observaciones: </span>
                     {p.observaciones?.trim() || 'Sin observaciones.'}
                   </p>
+                  {!!p.conflictos_guardias?.length && <div className="mt-2 text-sm text-orange-950">
+                    <p className="font-semibold">Conflicto con guardias · {p.conflictos_guardias.length} {p.conflictos_guardias.length === 1 ? 'guardia' : 'guardias'}</p>
+                    <p>{p.sustituto_nombre ? `Sustituto propuesto: ${p.sustituto_nombre}` : 'Sin sustituto propuesto. Necesita buscar cobertura.'}</p>
+                    <Link to="/supervisor/guardias" className="mt-1 inline-block font-medium underline">Revisar calendario de guardias</Link>
+                  </div>}
+                  {!p.conflictos_guardias?.length && p.sustituto_nombre && <p className="mt-2 text-sm text-slate-600">Sustituto propuesto: {p.sustituto_nombre} · Sin coincidencias actuales con guardias.</p>}
                 </div>
                 <div className="flex gap-2 text-xs">
                   <button
