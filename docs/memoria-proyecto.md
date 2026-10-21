@@ -4,12 +4,12 @@ Actualizada el 21 de octubre de 2026.
 
 ## Estado publicado
 
-- Rama de trabajo: `codex/security-stabilization`. Pendiente de revisión e integración en `main`; publicar la rama no despliega la aplicación.
+- Rama para retomar el proyecto: `main`. El 21 de octubre se incorporan mediante avance directo los 31 commits de `codex/security-stabilization`, hasta `1f9b6ef`, conservando el historial completo. La actualización de esta memoria acompaña la publicación en `origin/main`; no se ha desplegado la aplicación.
 - «Revisar calendario de guardias» abre el mes y el primer día afectado de la solicitud. El calendario consulta el permiso autorizado, resalta en naranja solo sus coincidencias actuales y ofrece accesos a las demás guardias afectadas. Conserva el contexto al recargar y retira las marcas cuando se sustituye al solicitante. Seis pruebas nuevas; lint, compilación y recorrido con navegador correctos.
 - El planificador anual distingue los inicios de semana asignados (verde, «Asignada») de los vacíos (violeta, «Vacía»), con leyenda y actualización tras guardar. Verificado con lint, compilación frontend y navegador local.
 - `254d610` añade planificación de guardias del año actual o siguiente, con validación en el servidor según Europe/Madrid.
 - `75cb3e9` corrige el resumen del periodo: una semana desde el 05/01/2026 muestra hasta el 12/01/2026.
-- Verificación local actual: 347 pruebas habituales correctas, tipos de integración, lint y compilación frontend. Las 46 pruebas de integración PostgreSQL siguen cubiertas por CI (393 pruebas en total con las seis nuevas). [CI de la tanda anterior](https://github.com/Grokhen/shiftguard/actions/runs/39659270468).
+- Última versión funcional verificada: `1f9b6ef`, con 347 pruebas habituales y 46 de integración PostgreSQL, **393 en total**, tipos de integración, ambas compilaciones y lint correctos en [CI](https://github.com/Grokhen/shiftguard/actions/runs/39660599049). El cierre de integración en `main` solo actualiza documentación.
 
 ## Funcionalidad disponible
 
@@ -31,6 +31,14 @@ El usuario ha planteado conservar los cambios sobre la planificación original p
 - Conservar por defecto las semanas ajustadas manualmente al replanificar una serie; sustituirlas solo tras seleccionarlas expresamente.
 
 Actualmente la confirmación de reemplazo abarca las semanas objetivo con asignaciones distintas; no distingue excepciones manuales ni guarda historial. No presentar esas protecciones propuestas como disponibles.
+
+## Traspaso al siguiente chat
+
+- Leer primero `AGENTS.md`, esta memoria y `README.md`. Comprobar `git status` y la rama actual antes de editar; el checkout queda en `main`.
+- Todo el código de esta tanda está integrado en `main`. La rama `codex/security-stabilization` se conserva como referencia del trabajo previo; no hay que volver a integrar esos commits.
+- El siguiente asunto de producto es concretar e implementar, cuando el usuario lo indique, el historial y la protección de excepciones descritos arriba. Las modificaciones individuales y el reemplazo de series ya existen; la trazabilidad de motivos y la protección selectiva siguen pendientes.
+- Sigue pendiente automatizar recorridos E2E del navegador; los recorridos visuales hechos en esta sesión son comprobaciones manuales con herramientas.
+- Los datos locales de prueba han sido modificados por el usuario durante las pruebas: conservarlos y consultar su estado actual antes de preparar nuevos ejemplos.
 
 ## Entorno local y comprobaciones
 

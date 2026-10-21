@@ -2,7 +2,7 @@
 
 Este documento lista las siguientes tareas sugeridas para continuar el proyecto despues del traspaso.
 
-Actualizacion del 5 de septiembre de 2026: consultar la [primera tanda de estabilizacion](C:/Users/lacro/Desktop/Proyectos/ShiftGuard/docs/estabilizacion-2026-09-05.md) y la [integracion con PostgreSQL verificada en CI](integracion-postgresql-2026-09-05.md) para el estado de las correcciones y su verificacion. Ya se han comprobado persistencia, rollback y concurrencia de guardias; siguen pendientes traslados y decisiones concurrentes de permisos. La lista siguiente conserva el contexto de trabajo anterior a la auditoria.
+Actualizacion del 21 de octubre de 2026: todos los cambios de estabilizacion y calendarios hasta `1f9b6ef` se incorporan a `main`. La [memoria del proyecto](memoria-proyecto.md) es la referencia actual para continuar. Hay 393 pruebas correctas en CI, incluidas persistencia, rollback, traslados, decisiones concurrentes de permisos y planificacion anual. Las secciones de prioridades siguientes conservan el contexto historico anterior a la auditoria; no deben interpretarse como una lista actual de trabajo sin hacer.
 
 ## Estado de partida
 
@@ -159,10 +159,6 @@ Estas instrucciones ya estan incorporadas en el `AGENTS.md` actual:
 
 ## Siguiente tarea concreta
 
-Validar la primera tanda de estabilizacion contra PostgreSQL de test, especialmente concurrencia, traslados y rollback. La PR inicial de CI ya esta incorporada.
+Concretar con el usuario el historial de cambios de guardias y la proteccion de excepciones al replanificar series. Se ha propuesto registrar autor, fecha, asignaciones anteriores/nuevas y motivo, conservando por defecto las semanas ajustadas manualmente. Esta propuesta aun no esta implementada.
 
-Despues de esa verificacion:
-
-1. Completar seed seguro, limitacion de intentos y cambio obligatorio de password.
-2. Resolver bandeja de pendientes por delegacion y reglas de disponibilidad.
-3. Actualizar dependencias con revision y preparar tests E2E y operacion.
+Tambien quedan pendientes pruebas E2E automatizadas del navegador y preparacion del despliegue. El seed seguro, la limitacion de intentos, el cambio obligatorio de password, la bandeja por delegacion y la integracion PostgreSQL ya estan implementados y verificados; consultar los informes enlazados desde la memoria.
