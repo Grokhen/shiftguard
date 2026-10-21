@@ -4,6 +4,7 @@ import { LoginPage } from './pages/LoginPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { TechnicianDashboard } from './pages/TechnicianDashboard'
 import { SupervisorDashboard } from './pages/SupervisorDashboard'
+import { ShiftCalendarPage } from './pages/ShiftCalendarPage'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminUsuariosPage } from './pages/admin/AdminUsuariosPage'
 import { AdminUsuarioNuevoPage } from './pages/admin/AdminUsuarioNuevoPage'
@@ -45,6 +46,17 @@ function App() {
           <ProtectedRoute allowedRoles={[ROLE_SUPERVISOR]}>
             <AppLayout title="Panel de supervisor" subtitle="Guardias y permisos de tu delegación.">
               <SupervisorDashboard />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/supervisor/guardias"
+        element={
+          <ProtectedRoute allowedRoles={[ROLE_SUPERVISOR]}>
+            <AppLayout title="Calendario de guardias" subtitle="Asigna los técnicos a las semanas de tu delegación.">
+              <ShiftCalendarPage />
             </AppLayout>
           </ProtectedRoute>
         }

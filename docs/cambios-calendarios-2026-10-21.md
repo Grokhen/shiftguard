@@ -3,7 +3,7 @@
 Lista de ejecución, en el orden solicitado:
 
 - [x] 1. Predefinir guardias semanales vacías por delegación; incluir semanas que cruzan de año.
-- [ ] 2. Sustituir el formulario del supervisor por un calendario mensual con consulta por día y edición de técnicos.
+- [x] 2. Sustituir el formulario del supervisor por un calendario mensual con consulta por día y edición de técnicos.
 - [ ] 3. Mostrar al supervisor las observaciones de las solicitudes.
 - [ ] 4. Añadir calendario anual del técnico: principal rojo, secundario amarillo y consulta de compañeros de su delegación.
 - [ ] 5. Avisar de permisos coincidentes con guardias, recoger sustituto opcional y resaltar el conflicto al supervisor.
@@ -22,3 +22,4 @@ Lista de ejecución, en el orden solicitado:
 ## Verificación por pasos
 
 1. Generación: 303 pruebas habituales y 37 de integración PostgreSQL correctas. La nueva carrera fuerza dos lecturas del calendario antes de insertar: hay un aborto real, un reintento y 53 semanas finales sin duplicados. Tipos de integración y compilación backend correctos. Esquema temporal eliminado; la base de demostración no se usa para estas pruebas.
+2. Calendario mensual: lint y compilación frontend correctos. Navegador local: abrir desde supervisor, cambiar de mes, seleccionar una semana vacía y guardar principal/secundario en una sola petición. El calendario marca los siete días y muestra los nombres guardados. Los selectores consultan técnicos activos de toda la delegación, incluidos los que no pertenecen a equipos.

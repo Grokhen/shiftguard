@@ -1,20 +1,15 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-//import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import {
   getGuardiasDelegacion,
   getGuardiaDetalle,
-  crearGuardia,
-  getRolesGuardia,
   type Guardia,
   type GuardiaDetalle,
-  type RolGuardia,
 } from '../services/guardiasService'
 import {
   getEquipos,
-  getEquipoDetalle,
   type Equipo,
-  type UsuarioBasico,
 } from '../services/equiposService'
 import {
   getPermisosEquipo,
@@ -56,19 +51,6 @@ export function SupervisorDashboard() {
   const [permisoEnDecision, setPermisoEnDecision] = useState<number | null>(null)
   const [pendientesRevision, setPendientesRevision] = useState(0)
 
-  const [tecnicosDisponibles, setTecnicosDisponibles] = useState<UsuarioBasico[]>([])
-  const [errorTecnicos, setErrorTecnicos] = useState<string | null>(null)
-  const [rolesGuardia, setRolesGuardia] = useState<RolGuardia[]>([])
-
-  const [guardiaFechaInicio, setGuardiaFechaInicio] = useState('')
-  const [guardiaFechaFin, setGuardiaFechaFin] = useState('')
-  const [guardiaEstado, setGuardiaEstado] = useState('PLANIFICADA')
-  const [guardiaTecnicoId, setGuardiaTecnicoId] = useState('')
-  const [guardiaTecnicoSecId, setGuardiaTecnicoSecId] = useState('')
-  const [errorGuardiaForm, setErrorGuardiaForm] = useState<string | null>(null)
-  const [successGuardiaForm, setSuccessGuardiaForm] = useState<string | null>(null)
-  const [isSubmittingGuardia, setIsSubmittingGuardia] = useState(false)
-
   useEffect(() => {
     if (!accessToken || !user) return
     ;(async () => {
@@ -94,16 +76,12 @@ export function SupervisorDashboard() {
           setEquipoSeleccionadoId(equiposRes[0].id)
         }
 
-        const [estados, rolesGuardiaRes] = await Promise.all([
-          getEstadosPermiso(accessToken),
-          getRolesGuardia(accessToken),
-        ])
+        const estados = await getEstadosPermiso(accessToken)
         const aprobado = estados.find((e) => e.codigo === 'APROBADO')
         const rechazado = estados.find((e) => e.codigo === 'RECHAZADO')
 
         if (aprobado) setEstadoAprobadoId(aprobado.id)
         if (rechazado) setEstadoRechazadoId(rechazado.id)
-        setRolesGuardia(rolesGuardiaRes)
       } catch (err) {
         console.error(err)
         setErrorInit(
@@ -164,28 +142,6 @@ export function SupervisorDashboard() {
     }
   }, [accessToken, pendientesRevision])
 
-  useEffect(() => {
-    if (!accessToken || !equipoSeleccionadoId) {
-      setTecnicosDisponibles([])
-      return
-    }
-
-    ;(async () => {
-      setErrorTecnicos(null)
-      try {
-        const equipoDetalle = await getEquipoDetalle(accessToken, equipoSeleccionadoId)
-        const usuarios = equipoDetalle.Miembros.map((m) => m.Usuario)
-        setTecnicosDisponibles(usuarios)
-      } catch (err) {
-        console.error(err)
-        setErrorTecnicos(
-          err instanceof Error ? err.message : 'Error al cargar técnicos del equipo.',
-        )
-        setTecnicosDisponibles([])
-      }
-    })()
-  }, [accessToken, equipoSeleccionadoId])
-
   const tecnicosDeGuardia = useMemo(() => {
     const asignaciones: {
       guardiaId: number
@@ -218,16 +174,6 @@ export function SupervisorDashboard() {
       return activoEnFecha && estadoValido
     })
   }, [permisosEquipo])
-
-  const rolGuardiaPrincipal = useMemo(
-    () => rolesGuardia.find((rol) => rol.codigo === 'PRINCIPAL') ?? null,
-    [rolesGuardia],
-  )
-
-  const rolGuardiaSecundario = useMemo(
-    () => rolesGuardia.find((rol) => rol.codigo === 'SECUNDARIO') ?? null,
-    [rolesGuardia],
-  )
 
   async function handleDecidirPermiso(permiso: PermisoConUsuario, accion: 'APROBAR' | 'RECHAZAR') {
     if (!accessToken || permisoEnDecision !== null) return
@@ -279,80 +225,6 @@ export function SupervisorDashboard() {
       setPermisoEnDecision(null)
       // Reconcile the inbox after both successful decisions and conflicts with another reviewer.
       setPendientesRevision((revision) => revision + 1)
-    }
-  }
-
-  async function handleCrearGuardia(e: FormEvent) {
-    e.preventDefault()
-    if (!accessToken) return
-
-    setErrorGuardiaForm(null)
-    setSuccessGuardiaForm(null)
-
-    if (!guardiaFechaInicio || !guardiaFechaFin || !guardiaTecnicoId) {
-      setErrorGuardiaForm('Selecciona fechas de inicio/fin y un técnico asignado.')
-      return
-    }
-
-    if (guardiaTecnicoSecId && guardiaTecnicoSecId === guardiaTecnicoId) {
-      setErrorGuardiaForm('No puedes asignar el mismo técnico como principal y secundario.')
-      return
-    }
-
-    if (!rolGuardiaPrincipal) {
-      setErrorGuardiaForm('No se ha encontrado el rol de guardia PRINCIPAL.')
-      return
-    }
-
-    if (guardiaTecnicoSecId && !rolGuardiaSecundario) {
-      setErrorGuardiaForm('No se ha encontrado el rol de guardia SECUNDARIO.')
-      return
-    }
-
-    const ini = new Date(guardiaFechaInicio)
-    const fin = new Date(guardiaFechaFin)
-
-    if (fin.getTime() <= ini.getTime()) {
-      setErrorGuardiaForm('La fecha y hora de fin deben ser posteriores a la de inicio.')
-      return
-    }
-
-    setIsSubmittingGuardia(true)
-
-    try {
-      const asignaciones = [
-        {
-          usuario_id: Number(guardiaTecnicoId),
-          rol_guardia_id: rolGuardiaPrincipal.id,
-        },
-      ]
-
-      if (guardiaTecnicoSecId && rolGuardiaSecundario) {
-        asignaciones.push({
-          usuario_id: Number(guardiaTecnicoSecId),
-          rol_guardia_id: rolGuardiaSecundario.id,
-        })
-      }
-
-      await crearGuardia(accessToken, {
-        fecha_inicio: ini.toISOString(),
-        fecha_fin: fin.toISOString(),
-        estado: guardiaEstado || undefined,
-        asignaciones,
-      })
-
-      setSuccessGuardiaForm('Guardia creada y asignada correctamente.')
-      setGuardiaFechaInicio('')
-      setGuardiaFechaFin('')
-      setGuardiaTecnicoId('')
-      setGuardiaTecnicoSecId('')
-    } catch (err) {
-      console.error(err)
-      setErrorGuardiaForm(
-        err instanceof Error ? err.message : 'Error al crear la guardia. Revisa los datos.',
-      )
-    } finally {
-      setIsSubmittingGuardia(false)
     }
   }
 
@@ -628,153 +500,9 @@ export function SupervisorDashboard() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="mb-3 text-sm font-semibold text-slate-900 sm:text-base">
-          Crear nueva guardia
-        </h2>
-
-        {errorTecnicos && (
-          <div className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            {errorTecnicos}
-          </div>
-        )}
-
-        {equipos.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            No tienes equipos asignados. Contacta con un administrador.
-          </p>
-        ) : (
-          <form
-            className="grid gap-3 sm:grid-cols-2 sm:gap-4 text-sm"
-            onSubmit={handleCrearGuardia}
-          >
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Equipo</label>
-              <select
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={equipoSeleccionadoId ?? ''}
-                onChange={(e) =>
-                  setEquipoSeleccionadoId(e.target.value ? Number(e.target.value) : null)
-                }
-                required
-              >
-                {equipos.map((eq) => (
-                  <option key={eq.id} value={eq.id}>
-                    {eq.nombre_equipo}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                Estado inicial
-              </label>
-              <select
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={guardiaEstado}
-                onChange={(e) => setGuardiaEstado(e.target.value)}
-              >
-                <option value="PLANIFICADA">Planificada</option>
-                <option value="PUBLICADA">Publicada</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                Fecha y hora de inicio
-              </label>
-              <input
-                type="datetime-local"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={guardiaFechaInicio}
-                onChange={(e) => setGuardiaFechaInicio(e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                Fecha y hora de fin
-              </label>
-              <input
-                type="datetime-local"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={guardiaFechaFin}
-                onChange={(e) => setGuardiaFechaFin(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                Técnico asignado (rol PRINCIPAL)
-              </label>
-              <select
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={guardiaTecnicoId}
-                onChange={(e) => setGuardiaTecnicoId(e.target.value)}
-                required
-                disabled={tecnicosDisponibles.length === 0 || !rolGuardiaPrincipal}
-              >
-                <option value="">
-                  {tecnicosDisponibles.length === 0
-                    ? 'No hay técnicos en este equipo'
-                    : 'Selecciona un técnico'}
-                </option>
-                {tecnicosDisponibles.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nombre} {t.apellidos} ({t.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                Técnico con rol SECUNDARIO (opcional)
-              </label>
-              <select
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-500"
-                value={guardiaTecnicoSecId}
-                onChange={(e) => setGuardiaTecnicoSecId(e.target.value)}
-                disabled={tecnicosDisponibles.length === 0 || !rolGuardiaSecundario}
-              >
-                <option value="">
-                  {tecnicosDisponibles.length === 0
-                    ? 'No hay técnicos en este equipo'
-                    : 'Sin técnico secundario'}
-                </option>
-                {tecnicosDisponibles.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nombre} {t.apellidos} ({t.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {errorGuardiaForm && (
-              <div className="sm:col-span-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-                {errorGuardiaForm}
-              </div>
-            )}
-
-            {successGuardiaForm && (
-              <div className="sm:col-span-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                {successGuardiaForm}
-              </div>
-            )}
-
-            <div className="sm:col-span-2 flex justify-end">
-              <button
-                type="submit"
-                disabled={isSubmittingGuardia || !rolGuardiaPrincipal}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isSubmittingGuardia ? 'Creando…' : 'Crear guardia'}
-              </button>
-            </div>
-          </form>
-        )}
+        <h2 className="mb-2 text-base font-semibold text-slate-900">Ver calendario de guardias</h2>
+        <p className="mb-4 text-sm text-slate-500">Consulta las semanas de tu delegación y añade o modifica los técnicos asignados.</p>
+        <Link to="/supervisor/guardias" className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Ver calendario de guardias</Link>
       </section>
     </div>
   )

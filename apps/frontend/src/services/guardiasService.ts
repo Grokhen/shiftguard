@@ -80,6 +80,18 @@ export type GuardiaDetalle = Guardia & {
   Asignaciones: AsignacionGuardiaConUsuario[]
 }
 
+export async function getCalendar(accessToken: string, anio: number): Promise<GuardiaDetalle[]> {
+  return authorizedGet<GuardiaDetalle[]>(`/api/guardias/calendario?anio=${anio}`, accessToken)
+}
+
+export async function prepareCalendar(accessToken: string, anio: number) {
+  return authorizedPost<{ creadas: number; guardias_previas: number }>('/api/guardias/calendario', accessToken, { anio })
+}
+
+export async function getCalendarTechnicians(accessToken: string): Promise<UsuarioGuardia[]> {
+  return authorizedGet<UsuarioGuardia[]>('/api/guardias/tecnicos', accessToken)
+}
+
 export async function getGuardiasDelegacion(
   accessToken: string,
   delegacionId: number,
