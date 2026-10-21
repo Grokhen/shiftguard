@@ -2,10 +2,11 @@ import type { Guardia } from '../services/guardiasService'
 
 export const calendarZone = 'Europe/Madrid'
 export const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+const dayFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: calendarZone, year: 'numeric', month: '2-digit', day: '2-digit',
+})
 export function shiftDay(iso: string): string {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-    timeZone: calendarZone, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date(iso)).map(p => [p.type, p.value]))
+  const parts = Object.fromEntries(dayFormatter.formatToParts(new Date(iso)).map(p => [p.type, p.value]))
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 export function shiftsOnDay<T extends Guardia>(shifts: T[], date: string): T[] {

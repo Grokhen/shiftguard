@@ -3,6 +3,7 @@ import * as jwt from 'jsonwebtoken'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/app'
 import { calendarWeeks, permissionShiftRange } from '../src/utils/shiftCalendar'
+import { monthDays, shiftsOnDay } from '../../frontend/src/utils/shiftCalendar'
 
 const db = vi.hoisted(() => ({
   usuario: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -24,6 +25,19 @@ beforeEach(() => {
 })
 
 describe('natural weeks in Madrid', () => {
+  it('lays out months Monday first, including February without inventing days', () => {
+    const days = monthDays(2026, 1)
+    expect(days[0].value).toBe('2026-01-26')
+    expect(days.at(-1)!.value).toBe('2026-03-01')
+    expect(days.filter(d => d.current)).toHaveLength(28)
+  })
+  it('marks a whole local week and excludes the next Monday in the frontend', () => {
+    const shift = { id: 1, delegacion_id: 8, estado: 'PLANIFICADA', fecha_inicio: '2026-03-22T23:00:00Z', fecha_fin: '2026-03-29T22:00:00Z' }
+    expect(shiftsOnDay([shift], '2026-03-23')).toEqual([shift])
+    expect(shiftsOnDay([shift], '2026-03-29')).toEqual([shift])
+    expect(shiftsOnDay([shift], '2026-03-30')).toEqual([])
+    expect(shiftsOnDay([shift], '2026-03-22')).toEqual([])
+  })
   it('includes adjacent years and exactly adjoining Monday boundaries', () => {
     const weeks = calendarWeeks(2026)
     expect(weeks).toHaveLength(53)

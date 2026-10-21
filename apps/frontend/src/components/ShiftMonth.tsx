@@ -21,14 +21,14 @@ export function ShiftMonth({ year, month, shifts, selected, onSelect, userId, co
           const assigned = matches.some(s => s.Asignaciones.length > 0)
           const color = principal ? 'bg-red-100 text-red-900' : secondary ? 'bg-yellow-100 text-yellow-900'
             : assigned ? 'bg-blue-50 text-blue-900' : 'bg-slate-50 text-slate-700'
-          const label = principal ? 'Principal' : secondary ? 'Secundario' : assigned ? 'Compañeros de guardia' : 'Sin técnicos asignados'
+          const label = principal ? 'Principal' : secondary ? 'Secundario' : assigned ? 'Compañeros de guardia' : matches.length ? 'Sin técnicos asignados' : 'Sin guardia preparada'
           return (
             <button key={day.value} type="button" disabled={!day.current} aria-pressed={selected === day.value}
               aria-label={`${day.value}: ${label}`} onClick={() => onSelect(day.value)}
               className={`${compact ? 'min-h-9 text-xs' : 'min-h-16 text-sm'} flex flex-col items-center justify-center rounded-lg border border-transparent ${color} disabled:opacity-30 hover:border-blue-400 focus-visible:outline-2 focus-visible:outline-blue-600 ${selected === day.value ? 'ring-2 ring-blue-600' : ''} ${today === day.value ? 'font-bold underline' : ''}`}>
               <span>{day.number}</span>
               {day.current && (principal || secondary) && <span className="text-[10px] font-semibold">{principal ? 'P' : 'S'}</span>}
-              {!compact && day.current && <span className="text-[10px]">{assigned ? 'Asignada' : 'Vacía'}</span>}
+              {!compact && day.current && <span className="text-[10px]">{assigned ? 'Asignada' : matches.length ? 'Vacía' : '—'}</span>}
             </button>
           )
         })}

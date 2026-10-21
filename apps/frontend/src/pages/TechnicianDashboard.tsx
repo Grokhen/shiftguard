@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-//import { Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getMyShifts, type AsignacionGuardia } from '../services/guardiasService'
 import {
@@ -10,6 +10,7 @@ import {
   type TipoPermiso,
 } from '../services/permisosService'
 import { formatDateLong, formatTime, formatCalendarDateRange, isShiftActive } from '../utils/date'
+import { shiftDay } from '../utils/shiftCalendar'
 
 export function TechnicianDashboard() {
   const { accessToken } = useAuth()
@@ -212,6 +213,9 @@ export function TechnicianDashboard() {
             </p>
 
             <p className="text-slate-600">
+              {formatCalendarDateRange(shiftDay(nextShift.Guardia.fecha_inicio), shiftDay(new Date(new Date(nextShift.Guardia.fecha_fin).getTime() - 1).toISOString()))}
+            </p>
+            <p className="text-slate-600">
               {formatTime(nextShift.Guardia.fecha_inicio)} —{' '}
               {formatTime(nextShift.Guardia.fecha_fin)}
             </p>
@@ -226,14 +230,24 @@ export function TechnicianDashboard() {
           </p>
         )}
 
-        {/*<div className="mt-4">
+        <div className="mt-4">
           <Link
-            to="/guardias/mias"
+            to="/tecnico/guardias"
             className="text-sm font-medium text-blue-600 hover:text-blue-700"
           >
-            Ver todas mis guardias →
+            Calendario de guardias →
           </Link>
-        </div>*/}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <h2 className="mb-3 text-base font-semibold">Tus próximas guardias</h2>
+        {shifts.filter(a => new Date(a.Guardia.fecha_inicio).getTime() > now.getTime()).length === 0
+          ? <p className="text-sm text-slate-500">No tienes próximas guardias asignadas.</p>
+          : <ul className="space-y-2 text-sm">{shifts.filter(a => new Date(a.Guardia.fecha_inicio).getTime() > now.getTime()).slice(0, 3).map(a => <li key={a.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3">
+              <span>{formatCalendarDateRange(shiftDay(a.Guardia.fecha_inicio), shiftDay(new Date(new Date(a.Guardia.fecha_fin).getTime() - 1).toISOString()))}</span>
+              <span className={a.RolGuardia.codigo === 'PRINCIPAL' ? 'font-medium text-red-700' : 'font-medium text-yellow-800'}>{a.RolGuardia.nombre}</span>
+            </li>)}</ul>}
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">

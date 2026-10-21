@@ -3,6 +3,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { TechnicianDashboard } from './pages/TechnicianDashboard'
+import { TechnicianCalendarPage } from './pages/TechnicianCalendarPage'
 import { SupervisorDashboard } from './pages/SupervisorDashboard'
 import { ShiftCalendarPage } from './pages/ShiftCalendarPage'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
@@ -35,6 +36,17 @@ function App() {
           <ProtectedRoute allowedRoles={[ROLE_TECNICO]}>
             <AppLayout title="Panel de técnico" subtitle="Resumen de tus guardias y vacaciones.">
               <TechnicianDashboard />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tecnico/guardias"
+        element={
+          <ProtectedRoute allowedRoles={[ROLE_TECNICO]}>
+            <AppLayout title="Mi calendario de guardias" subtitle="Tus asignaciones y las de tus compañeros de delegación.">
+              <TechnicianCalendarPage />
             </AppLayout>
           </ProtectedRoute>
         }
