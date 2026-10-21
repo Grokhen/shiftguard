@@ -5,7 +5,8 @@ Actualizada el 21 de octubre de 2026.
 ## Estado publicado
 
 - Rama de trabajo: `codex/security-stabilization`. Pendiente de revisión e integración en `main`; publicar la rama no despliega la aplicación.
-- Último cambio funcional: `254d610`, planificación de guardias del año actual o siguiente, con validación en el servidor según Europe/Madrid.
+- El planificador anual distingue los inicios de semana asignados (verde, «Asignada») de los vacíos (violeta, «Vacía»), con leyenda y actualización tras guardar. Verificado con lint, compilación frontend y navegador local.
+- `254d610` añade planificación de guardias del año actual o siguiente, con validación en el servidor según Europe/Madrid.
 - `75cb3e9` corrige el resumen del periodo: una semana desde el 05/01/2026 muestra hasta el 12/01/2026.
 - Verificación del cambio funcional: 341 pruebas habituales y 46 de integración PostgreSQL, 387 en total; tipos de integración, compilaciones y lint correctos. [CI correcta](https://github.com/Grokhen/shiftguard/actions/runs/39627178075).
 

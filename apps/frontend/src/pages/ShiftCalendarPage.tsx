@@ -185,6 +185,11 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
       {success && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{success}</p>}
       {loading ? <p role="status">Preparando calendario…</p> : annual ? <>
         {detailsPanel}
+        <div className="flex flex-wrap items-center gap-3 text-sm" aria-label="Leyenda de inicios de semana">
+          <span className="text-slate-600">Inicio de semana:</span>
+          <span className="rounded-lg bg-emerald-100 px-3 py-1 font-medium text-emerald-950">Asignada · con técnicos</span>
+          <span className="rounded-lg bg-violet-100 px-3 py-1 font-medium text-violet-950">Vacía · sin técnicos</span>
+        </div>
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 12 }, (_, m) =>
           <ShiftMonth key={m} year={year} month={m} shifts={shifts} selected={selected} onSelect={selectDay} weekStarts={weekStarts} compact />)}</div>
       </> : <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
