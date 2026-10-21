@@ -1,5 +1,8 @@
 // One calendar timezone for all delegations until per-delegation timezones are defined.
 export const SHIFT_TIME_ZONE = 'Europe/Madrid'
+export function currentShiftYear(now = new Date()): number {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: SHIFT_TIME_ZONE, year: 'numeric' }).format(now))
+}
 const day = 86_400_000
 const offsetFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: SHIFT_TIME_ZONE, timeZoneName: 'longOffset' })
 
@@ -34,4 +37,11 @@ export function calendarWeeks(year: number) {
     cursor += 7 * day
   }
   return weeks
+}
+
+export function recurringCalendarWeeks(year: number, start: Date, frequency?: number) {
+  const weeks = calendarWeeks(year)
+  const index = weeks.findIndex(w => w.fecha_inicio.getTime() === start.getTime())
+  if (index < 0) return []
+  return frequency === undefined ? [weeks[index]] : weeks.filter((_, i) => i >= index && (i - index) % frequency === 0)
 }

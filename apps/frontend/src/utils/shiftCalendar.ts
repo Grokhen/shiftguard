@@ -22,3 +22,19 @@ export function monthDays(year: number, month: number) {
     return { value: date.toISOString().slice(0, 10), number: date.getUTCDate(), current: date.getUTCMonth() === month }
   })
 }
+
+export function calendarWeekStarts(year: number): string[] {
+  const first = new Date(Date.UTC(year, 0, 1))
+  const start = first.getTime() - ((first.getUTCDay() + 6) % 7) * 86_400_000
+  const last = Date.UTC(year, 11, 31)
+  const result: string[] = []
+  for (let time = start; time <= last; time += 7 * 86_400_000) result.push(new Date(time).toISOString().slice(0, 10))
+  return result
+}
+
+export function recurringWeekStarts(year: number, start: string, frequency?: number): string[] {
+  const weeks = calendarWeekStarts(year)
+  const index = weeks.indexOf(start)
+  if (index < 0 || (frequency !== undefined && (!Number.isInteger(frequency) || frequency < 1 || frequency > weeks.length))) return []
+  return frequency === undefined ? [start] : weeks.filter((_, i) => i >= index && (i - index) % frequency === 0)
+}

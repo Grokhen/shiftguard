@@ -5,7 +5,7 @@ import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
 import { serializableTransaction } from '../../utils/transaction'
 import { httpError } from '../../utils/httpError'
-import { calendarWeeks, SHIFT_TIME_ZONE } from '../../utils/shiftCalendar'
+import { calendarWeeks, currentShiftYear, recurringCalendarWeeks, SHIFT_TIME_ZONE } from '../../utils/shiftCalendar'
 import {
   ensureSupervisorOrAdmin,
   getUserRoleCodigo,
@@ -101,6 +101,75 @@ const usuarioSeguroSelect = {
 
 // Restrict generation to operational years with complete adjacent weeks.
 const calendarSchema = z.object({ anio: z.coerce.number().int().min(2000).max(2100) }).strict()
+
+const planningSchema = z.object({
+  anio: z.number().int().min(2000).max(2100),
+  guardia_id: z.number().int().positive(),
+  principal_id: z.number().int().positive(),
+  secundario_id: z.number().int().positive().optional(),
+  frecuencia_semanas: z.number().int().positive().optional(),
+  reemplazar_existentes: z.boolean().default(false),
+}).strict().refine(d => d.principal_id !== d.secundario_id, {
+  path: ['secundario_id'], message: 'El principal y el secundario deben ser técnicos distintos.',
+})
+
+router.post('/calendario/planificar', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    await ensureSupervisorOrAdmin(user)
+    const dto = planningSchema.parse(req.body)
+    if (dto.anio !== currentShiftYear()) throw httpError('Solo puedes planificar el año actual. Actualiza el calendario.', 400)
+    const weeks = calendarWeeks(dto.anio)
+    if (dto.frecuencia_semanas !== undefined && dto.frecuencia_semanas > weeks.length) {
+      throw httpError(`La frecuencia debe estar entre 1 y ${weeks.length} semanas.`, 400)
+    }
+    const result = await serializableTransaction(async tx => {
+      // Repeat every read and validation on a serialization retry.
+      if (dto.anio !== currentShiftYear()) throw httpError('El año ha cambiado. Actualiza el calendario.', 409)
+      const first = await tx.guardia.findUnique({ where: { id: dto.guardia_id } })
+      if (!first) throw httpError('Guardia no encontrada', 404)
+      if (first.delegacion_id !== user.deleg) throw httpError('No puedes planificar guardias de otra delegación', 403)
+      const targets = recurringCalendarWeeks(dto.anio, first.fecha_inicio, dto.frecuencia_semanas)
+      if (!targets.length || targets[0].fecha_fin.getTime() !== first.fecha_fin.getTime()) {
+        throw httpError('Selecciona el inicio de una semana natural del año actual.', 400)
+      }
+      const users = [dto.principal_id, ...(dto.secundario_id ? [dto.secundario_id] : [])]
+      const technicians = await tx.usuario.findMany({
+        where: { id: { in: users }, delegacion_id: user.deleg, activo: true, Rol: { codigo: 'TECNICO' } },
+        select: { id: true },
+      })
+      if (technicians.length !== users.length) throw httpError('Solo puedes asignar técnicos activos de tu delegación.', 400)
+      const roles = await tx.rolGuardia.findMany({ where: { codigo: { in: ['PRINCIPAL', 'SECUNDARIO'] } } })
+      const primaryRole = roles.find(r => r.codigo === 'PRINCIPAL')
+      const secondaryRole = roles.find(r => r.codigo === 'SECUNDARIO')
+      if (!primaryRole || (dto.secundario_id && !secondaryRole)) throw httpError('Faltan los roles de guardia. Revisa el catálogo.', 500)
+      const assignments = [{ usuario_id: dto.principal_id, rol_guardia_id: primaryRole.id },
+        ...(dto.secundario_id ? [{ usuario_id: dto.secundario_id, rol_guardia_id: secondaryRole!.id }] : [])]
+      const stored = await tx.guardia.findMany({
+        where: { delegacion_id: user.deleg, fecha_inicio: { in: targets.map(w => w.fecha_inicio) } },
+        include: { Asignaciones: true },
+      })
+      const selected = targets.map(week => stored.filter(s => s.fecha_inicio.getTime() === week.fecha_inicio.getTime() && s.fecha_fin.getTime() === week.fecha_fin.getTime()))
+      if (selected.some(matches => matches.length !== 1)) {
+        throw httpError('Hay semanas sin preparar o con guardias anteriores de otras fechas. Revísalas en el calendario mensual antes de planificar la serie.', 409)
+      }
+      const changes = selected.map(matches => matches[0]).filter(shift =>
+        shift.Asignaciones.length !== assignments.length || assignments.some(a =>
+          !shift.Asignaciones.some(current => current.usuario_id === a.usuario_id && current.rol_guardia_id === a.rol_guardia_id)))
+      const conflicts = changes.filter(s => s.Asignaciones.length > 0).map(s => s.id)
+      if (conflicts.length && !dto.reemplazar_existentes) return { conflictos: conflicts, programadas: 0, actualizadas: 0 }
+      if (changes.length) {
+        await tx.asignacionGuardia.deleteMany({ where: { guardia_id: { in: changes.map(s => s.id) } } })
+        await tx.asignacionGuardia.createMany({ data: changes.flatMap(s => assignments.map(a => ({ ...a, guardia_id: s.id }))) })
+      }
+      return { conflictos: [], programadas: targets.length, actualizadas: changes.length }
+    })
+    if (result.conflictos.length) return res.status(409).json({
+      code: 'CALENDAR_ASSIGNMENTS_EXIST', error: 'Algunas semanas ya tienen otros técnicos. Revisa el calendario y confirma si quieres reemplazarlos.', guardias_conflicto: result.conflictos,
+    })
+    res.json({ anio: dto.anio, programadas: result.programadas, actualizadas: result.actualizadas })
+  } catch (error) { next(error) }
+})
 
 router.post('/calendario', async (req, res, next) => {
   try {
