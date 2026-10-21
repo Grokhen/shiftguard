@@ -7,6 +7,7 @@ interface AppLayoutProps {
   children: ReactNode
   title?: string
   subtitle?: string
+  backTo?: string
 }
 
 function roleLabel(roleCode?: RoleCode | null) {
@@ -22,7 +23,7 @@ function roleLabel(roleCode?: RoleCode | null) {
   }
 }
 
-export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
+export function AppLayout({ children, title, subtitle, backTo }: AppLayoutProps) {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
@@ -102,11 +103,14 @@ export function AppLayout({ children, title, subtitle }: AppLayoutProps) {
       <main className="flex-1">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6">
           {(title || subtitle) && (
-            <div className="flex flex-col gap-1">
-              {title && (
-                <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{title}</h1>
-              )}
-              {subtitle && <p className="text-sm text-slate-500 sm:text-base">{subtitle}</p>}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 space-y-1">
+                {title && (
+                  <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">{title}</h1>
+                )}
+                {subtitle && <p className="text-sm text-slate-500 sm:text-base">{subtitle}</p>}
+              </div>
+              {backTo && <Link to={backTo} className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">← Volver</Link>}
             </div>
           )}
 

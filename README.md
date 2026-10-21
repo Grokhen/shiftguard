@@ -128,9 +128,11 @@ Las cuentas creadas desde administración y las contraseñas restablecidas por u
 - Navega a `/admin/usuarios/nuevo`.
 - Completa el formulario gestionado por [`AdminUsuarioNuevoPage`](apps/frontend/src/pages/admin/AdminUsuarioNuevoPage.tsx); la llamada se delega a [`crearUsuario`](apps/frontend/src/services/usuariosService.ts).
 
-### 3. Planificar guardia (Supervisor)
-- El formulario “Crear nueva guardia” en [`SupervisorDashboard`](apps/frontend/src/pages/SupervisorDashboard.tsx) crea la guardia y sus asignaciones en una sola llamada a `crearGuardia`, dentro de una transacción backend.
-- Validaciones locales impiden asignar fechas inconsistentes o duplicar roles (ver lógica en `handleCrearGuardia`).
+### 3. Calendarios de guardias
+- El supervisor abre «Ver calendario de guardias» desde su panel. La vista prepara las semanas vacías del año de su delegación y muestra el mes actual; al seleccionar un día puede consultar, añadir, retirar o sustituir principal y secundario en una sola transacción.
+- Las semanas van de lunes 00:00 al lunes siguiente 00:00, en horario de Madrid, e incluyen los días del año anterior o siguiente que correspondan. La generación es repetible y conserva las asignaciones. Las guardias previas con otras fechas se mantienen y sus semanas no se reemplazan.
+- El técnico dispone de próximas guardias y un calendario anual: rojo/P para principal, amarillo/S para secundario. Al seleccionar cualquier día puede ver los compañeros que cubren la guardia dentro de su delegación.
+- Los roles y los técnicos activos de la delegación se consultan al backend; los IDs no se fijan en el frontend. La vista del técnico es de consulta.
 - La API exige fechas y horas ISO con zona explícita (`Z` o `±HH:MM`), días válidos y hasta tres decimales de segundo. El final debe ser posterior al inicio al convertir ambos a UTC. El frontend ya envía este formato.
 - Los listados `/api/guardias`, `/api/guardias/mias` y `/api/guardias/delegacion/:delegacionId` admiten `desde` y `hasta` con el mismo formato. Incluyen cualquier guardia que se cruce con el rango, aunque haya empezado antes. El inicio se incluye y el final se excluye; si se envían ambos límites, `hasta` debe ser posterior a `desde`. Sin límites se conserva el listado completo dentro del alcance autorizado.
 
@@ -139,6 +141,8 @@ Las cuentas creadas desde administración y las contraseñas restablecidas por u
 - Supervisores deciden solicitudes mediante `decidirPermiso` cuando usan la sección “Permisos pendientes de aprobación”.
 - La bandeja consulta `GET /api/permisos/pendientes`: incluye todos los pendientes de la delegación del supervisor, sin filtrar por equipo o año. Los administradores pueden consultar todas las delegaciones o indicar `delegacion_id`. Los datos de usuario se seleccionan expresamente para no exponer credenciales. La lista se actualiza después de una decisión y mediante el botón «Actualizar».
 - Las fechas de permisos se envían como días válidos `YYYY-MM-DD`, sin hora ni zona horaria. El intervalo incluye ambos extremos. Los filtros `anio` de permisos propios y de equipo admiten 1–9999 e incluyen cualquier permiso que coincida con algún día del año, aunque empiece antes o termine después. La interfaz conserva estos días al mostrarlos en otras zonas horarias.
+- Si una solicitud coincide con una guardia, el técnico debe confirmar un aviso y puede proponer el nombre de un sustituto. El supervisor ve las observaciones, la coincidencia resaltada y si hay propuesta de cobertura. La propuesta no cambia automáticamente la guardia; se modifica desde el calendario. La API exige `confirmar_conflicto_guardias: true` cuando hay coincidencias y devuelve 409/`SHIFT_CONFLICT` si falta esa confirmación.
+- Las secciones de administración incluyen «Volver» a la derecha del título. Consultar la [lista de los seis cambios y su verificación](docs/cambios-calendarios-2026-10-21.md), incluida la nueva migración del sustituto.
 
 ## Estructura del monorepo (resumen)
 

@@ -92,7 +92,7 @@ function App() {
         path="/admin/usuarios"
         element={
           <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
-            <AppLayout title="Usuarios" subtitle="Gestión de cuentas de usuario">
+            <AppLayout title="Usuarios" subtitle="Gestión de cuentas de usuario" backTo="/admin">
               <AdminUsuariosPage />
             </AppLayout>
           </ProtectedRoute>
@@ -103,7 +103,7 @@ function App() {
         path="/admin/usuarios/nuevo"
         element={
           <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
-            <AppLayout title="Nuevo usuario" subtitle="Alta de un nuevo usuario en el sistema">
+            <AppLayout title="Nuevo usuario" subtitle="Alta de un nuevo usuario en el sistema" backTo="/admin/usuarios">
               <AdminUsuarioNuevoPage />
             </AppLayout>
           </ProtectedRoute>
@@ -114,7 +114,7 @@ function App() {
         path="/admin/delegaciones"
         element={
           <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
-            <AppLayout title="Delegaciones" subtitle="Gestión de delegaciones">
+            <AppLayout title="Delegaciones" subtitle="Gestión de delegaciones" backTo="/admin">
               <AdminDelegacionesPage />
             </AppLayout>
           </ProtectedRoute>
@@ -125,7 +125,7 @@ function App() {
         path="/admin/delegaciones/nueva"
         element={
           <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
-            <AppLayout title="Nueva delegación" subtitle="Crear una nueva delegación en el sistema">
+            <AppLayout title="Nueva delegación" subtitle="Crear una nueva delegación en el sistema" backTo="/admin/delegaciones">
               <AdminDelegacionNuevaPage />
             </AppLayout>
           </ProtectedRoute>
@@ -137,8 +137,9 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
             <AppLayout
-              title="Panel de administración"
-              subtitle="Gestión de usuarios, delegaciones y permisos."
+              title="Equipos"
+              subtitle="Gestión de equipos y sus miembros."
+              backTo="/admin"
             >
               <AdminEquiposPage />
             </AppLayout>
@@ -150,7 +151,7 @@ function App() {
         path="/admin/equipos/nuevo"
         element={
           <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
-            <AppLayout title="Nuevo equipo" subtitle="Crear un nuevo equipo en el sistema">
+            <AppLayout title="Nuevo equipo" subtitle="Crear un nuevo equipo en el sistema" backTo="/admin/equipos">
               <AdminEquipoNuevoPage />
             </AppLayout>
           </ProtectedRoute>
