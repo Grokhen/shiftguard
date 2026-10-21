@@ -92,6 +92,19 @@ export async function getCalendarTechnicians(accessToken: string): Promise<Usuar
   return authorizedGet<UsuarioGuardia[]>('/api/guardias/tecnicos', accessToken)
 }
 
+export type PlanificarCalendarioInput = {
+  anio: number
+  guardia_id: number
+  principal_id: number
+  secundario_id?: number
+  frecuencia_semanas?: number
+  reemplazar_existentes: boolean
+}
+
+export async function planificarCalendario(accessToken: string, input: PlanificarCalendarioInput) {
+  return authorizedPost<{ anio: number; programadas: number; actualizadas: number }>('/api/guardias/calendario/planificar', accessToken, input)
+}
+
 export async function getGuardiasDelegacion(
   accessToken: string,
   delegacionId: number,

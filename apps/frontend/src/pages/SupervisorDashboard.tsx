@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { subscribeCalendarUpdates } from '../utils/calendarEvents'
 import {
   getGuardiasDelegacion,
   getGuardiaDetalle,
@@ -50,6 +51,16 @@ export function SupervisorDashboard() {
   const [errorPendientes, setErrorPendientes] = useState<string | null>(null)
   const [permisoEnDecision, setPermisoEnDecision] = useState<number | null>(null)
   const [pendientesRevision, setPendientesRevision] = useState(0)
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') setPendientesRevision(n => n + 1)
+    }
+    const unsubscribe = subscribeCalendarUpdates(refresh)
+    // Also reflect changes made in a different browser/session.
+    const timer = window.setInterval(refresh, 30_000)
+    return () => { unsubscribe(); window.clearInterval(timer) }
+  }, [])
 
   useEffect(() => {
     if (!accessToken || !user) return
@@ -449,7 +460,7 @@ export function SupervisorDashboard() {
           Solicitudes de toda tu delegación, de cualquier año.
         </p>
 
-        {isLoadingPendientes ? (
+        {isLoadingPendientes && permisosPendientes.length === 0 ? (
           <p className="text-sm text-slate-500">Cargando permisos pendientes…</p>
         ) : errorPendientes ? (
           <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -510,9 +521,12 @@ export function SupervisorDashboard() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="mb-2 text-base font-semibold text-slate-900">Ver calendario de guardias</h2>
+        <h2 className="mb-2 text-base font-semibold text-slate-900">Calendario de guardias</h2>
         <p className="mb-4 text-sm text-slate-500">Consulta las semanas de tu delegación y añade o modifica los técnicos asignados.</p>
-        <Link to="/supervisor/guardias" className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Ver calendario de guardias</Link>
+        <div className="flex flex-wrap gap-3">
+          <Link to="/supervisor/guardias" className="inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Ver calendario de guardias</Link>
+          <Link to="/supervisor/guardias/planificar" className="inline-block rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">Planificar calendario de guardias anual</Link>
+        </div>
       </section>
     </div>
   )

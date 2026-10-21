@@ -1,0 +1,28 @@
+import { afterEach, expect, it, vi } from 'vitest'
+import { notifyCalendarUpdated, subscribeCalendarUpdates } from '../../frontend/src/utils/calendarEvents'
+
+afterEach(() => vi.unstubAllGlobals())
+it('refreshes conflicts on saves, cross-tab notifications and focus, then removes its listeners', () => {
+  const windowEvents = new EventTarget()
+  const documentEvents = new EventTarget()
+  const setItem = vi.fn()
+  Object.assign(windowEvents, { localStorage: { setItem } })
+  vi.stubGlobal('window', windowEvents)
+  vi.stubGlobal('document', documentEvents)
+  const refresh = vi.fn()
+  const stop = subscribeCalendarUpdates(refresh)
+  notifyCalendarUpdated()
+  expect(refresh).toHaveBeenCalledTimes(1)
+  expect(setItem.mock.calls[0][0]).toBe('shiftguard-calendar-updated')
+  const storage = (key: string) => Object.assign(new Event('storage'), { key })
+  windowEvents.dispatchEvent(storage('unrelated'))
+  expect(refresh).toHaveBeenCalledTimes(1)
+  windowEvents.dispatchEvent(storage('shiftguard-calendar-updated'))
+  windowEvents.dispatchEvent(new Event('focus'))
+  documentEvents.dispatchEvent(new Event('visibilitychange'))
+  expect(refresh).toHaveBeenCalledTimes(4)
+  stop()
+  notifyCalendarUpdated()
+  windowEvents.dispatchEvent(storage('shiftguard-calendar-updated'))
+  expect(refresh).toHaveBeenCalledTimes(4)
+})

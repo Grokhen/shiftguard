@@ -75,6 +75,17 @@ function App() {
       />
 
       <Route
+        path="/supervisor/guardias/planificar"
+        element={
+          <ProtectedRoute allowedRoles={[ROLE_SUPERVISOR]}>
+            <AppLayout title="Planificar calendario de guardias anual" subtitle="Asigna técnicos y repite su turno durante el año actual.">
+              <ShiftCalendarPage key="annual" annual />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/admin"
         element={
           <ProtectedRoute allowedRoles={[ROLE_ADMIN]}>
