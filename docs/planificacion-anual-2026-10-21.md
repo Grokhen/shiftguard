@@ -13,7 +13,7 @@ La vista anual permite seleccionar el lunes de una semana y asignarle un técnic
 
 Se utiliza el año actual en Europe/Madrid, validado también por el servidor. No se repite en semanas nuevas del año siguiente. Se conservan completas las semanas naturales compartidas con diciembre/enero, según la regla anterior del proyecto. El primer lunes de la primera semana puede estar en diciembre del año anterior y aparece resaltado en enero.
 
-La vista previa indica el número de semanas y la fecha inicial de la última. Si alguna tiene otros técnicos, hay que marcar expresamente que se reemplazan esas asignaciones. Las semanas intermedias no se modifican. Guardar de nuevo la misma planificación conserva las asignaciones e IDs existentes.
+La vista previa indica el número de semanas, la fecha inicial y el final de la última semana (el lunes siguiente). Por ejemplo, una sola semana desde el 05/01/2026 muestra hasta el 12/01/2026. Si alguna tiene otros técnicos, hay que marcar expresamente que se reemplazan esas asignaciones. Las semanas intermedias no se modifican. Guardar de nuevo la misma planificación conserva las asignaciones e IDs existentes.
 
 Toda la serie se valida y se escribe en una transacción serializable. Solo se admiten técnicos activos de la delegación del supervisor. Si falta una semana o está ocupada por una guardia anterior de otras fechas, no se guarda ninguna parte de la serie. Las guardias previas se revisan desde la vista mensual.
 

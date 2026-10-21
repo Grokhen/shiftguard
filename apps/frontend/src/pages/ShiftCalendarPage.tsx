@@ -112,6 +112,8 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
   }
   const selectedShifts = shiftsOnDay(shifts, selected)
   const plannedStarts = recurringWeekStarts(year, selected, repeat ? Number(frequency) : undefined)
+  const plannedEnd = plannedStarts.length ? new Date(`${plannedStarts.at(-1)!}T00:00:00.000Z`) : null
+  if (plannedEnd) plannedEnd.setUTCDate(plannedEnd.getUTCDate() + 7)
   const occupied = plannedStarts.filter(day => {
     const shift = shifts.find(s => shiftDay(s.fecha_inicio) === day)
     if (!shift?.Asignaciones.length) return false
@@ -145,7 +147,7 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
               <input aria-label="Frecuencia (semanas)" type="number" required min={1} max={weekStarts.length} step={1} value={frequency} disabled={saving} onChange={e => { setFrequency(e.target.value); setReplaceExisting(false) }} className="ml-3 w-24 rounded-lg border border-slate-300 bg-white p-2" />
             </label>}
             <p>{repeat ? `Una semana de guardia cada ${frequency || '…'} ${Number(frequency) === 1 ? 'semana' : 'semanas'}. Máximo: ${weekStarts.length}.` : 'Se asignará únicamente la semana seleccionada.'}</p>
-            <p className="font-medium">{plannedStarts.length === 1 ? 'Se programará 1 semana' : `Se programarán ${plannedStarts.length} semanas`}{plannedStarts.length > 0 ? `, desde ${formatCalendarDateRange(plannedStarts[0], plannedStarts[0]).split(' — ')[0]} hasta la que comienza el ${formatCalendarDateRange(plannedStarts.at(-1)!, plannedStarts.at(-1)!).split(' — ')[0]}.` : '.'}</p>
+            <p className="font-medium">{plannedStarts.length === 1 ? 'Se programará 1 semana' : `Se programarán ${plannedStarts.length} semanas`}{plannedEnd ? `, desde ${formatCalendarDateRange(plannedStarts[0], plannedEnd.toISOString()).replace(' — ', ' hasta el ')}.` : '.'}</p>
             {!!occupied && <label className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
               <input type="checkbox" checked={replaceExisting} disabled={saving} onChange={e => setReplaceExisting(e.target.checked)} className="mt-1" />
               Reemplazar las asignaciones existentes de {occupied} {occupied === 1 ? 'semana' : 'semanas'} por los técnicos seleccionados.
