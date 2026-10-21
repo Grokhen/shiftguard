@@ -5,6 +5,7 @@ import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
 import { serializableTransaction } from '../../utils/transaction'
 import { httpError } from '../../utils/httpError'
+import { calendarWeeks, SHIFT_TIME_ZONE } from '../../utils/shiftCalendar'
 import {
   ensureSupervisorOrAdmin,
   getUserRoleCodigo,
@@ -97,6 +98,64 @@ const usuarioSeguroSelect = {
   delegacion_id: true,
   activo: true,
 } as const
+
+// Restrict generation to operational years with complete adjacent weeks.
+const calendarSchema = z.object({ anio: z.coerce.number().int().min(2000).max(2100) }).strict()
+
+router.post('/calendario', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    await ensureSupervisorOrAdmin(user)
+    const { anio } = calendarSchema.parse(req.body)
+    const weeks = calendarWeeks(anio)
+    const result = await serializableTransaction(async tx => {
+      const existing = await tx.guardia.findMany({
+        where: { delegacion_id: user.deleg, fecha_inicio: { lt: weeks.at(-1)!.fecha_fin }, fecha_fin: { gt: weeks[0].fecha_inicio } },
+      })
+      const missing = weeks.filter(week => !existing.some(shift =>
+        shift.fecha_inicio < week.fecha_fin && shift.fecha_fin > week.fecha_inicio))
+      if (missing.length) await tx.guardia.createMany({
+        data: missing.map(week => ({ ...week, delegacion_id: user.deleg, estado: 'PLANIFICADA', creado_por: user.sub })),
+      })
+      const previas = existing.filter(shift => !weeks.some(week =>
+        week.fecha_inicio.getTime() === shift.fecha_inicio.getTime() && week.fecha_fin.getTime() === shift.fecha_fin.getTime())).length
+      return { creadas: missing.length, guardias_previas: previas }
+    })
+    res.json({ ...result, anio, zona_horaria: SHIFT_TIME_ZONE })
+  } catch (error) { next(error) }
+})
+
+router.get('/calendario', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    const { anio } = calendarSchema.parse(req.query)
+    const weeks = calendarWeeks(anio)
+    const guardias = await prisma.guardia.findMany({
+      where: { delegacion_id: user.deleg, fecha_inicio: { lt: weeks.at(-1)!.fecha_fin }, fecha_fin: { gt: weeks[0].fecha_inicio } },
+      include: {
+        Asignaciones: {
+          where: { Usuario: { delegacion_id: user.deleg } },
+          include: { Usuario: { select: usuarioSeguroSelect }, RolGuardia: true },
+        },
+      },
+      orderBy: { fecha_inicio: 'asc' },
+    })
+    res.json(guardias)
+  } catch (error) { next(error) }
+})
+
+router.get('/tecnicos', async (req, res, next) => {
+  try {
+    const user = req.user as AuthUser
+    await ensureSupervisorOrAdmin(user)
+    const usuarios = await prisma.usuario.findMany({
+      where: { delegacion_id: user.deleg, activo: true, Rol: { codigo: 'TECNICO' } },
+      select: usuarioSeguroSelect,
+      orderBy: [{ apellidos: 'asc' }, { nombre: 'asc' }],
+    })
+    res.json(usuarios)
+  } catch (error) { next(error) }
+})
 
 type AsignacionGuardiaInput = z.infer<typeof asignacionGuardiaInputSchema>
 
