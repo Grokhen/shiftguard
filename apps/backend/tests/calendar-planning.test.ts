@@ -2,7 +2,7 @@ import request from 'supertest'
 import * as jwt from 'jsonwebtoken'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/app'
-import { calendarWeeks, currentShiftYear, recurringCalendarWeeks } from '../src/utils/shiftCalendar'
+import { calendarWeeks, currentShiftYear, isPlanningYear, recurringCalendarWeeks } from '../src/utils/shiftCalendar'
 import { calendarWeekStarts, recurringWeekStarts, shiftDay } from '../../frontend/src/utils/shiftCalendar'
 
 const db = vi.hoisted(() => ({
@@ -52,6 +52,8 @@ describe('calendar-based recurrence', () => {
   })
   it('uses Madrid for the current year even while UTC is still in December', () => {
     expect(currentShiftYear(new Date('2026-12-31T23:30:00Z'))).toBe(2027)
+    expect(isPlanningYear(2026, new Date('2026-12-31T23:30:00Z'))).toBe(false)
+    expect(isPlanningYear(2028, new Date('2026-12-31T23:30:00Z'))).toBe(true)
   })
 })
 
@@ -79,7 +81,16 @@ describe('annual planning API', () => {
     const response = await plan({ ...input, frecuencia_semanas: weeks.length }).expect(200)
     expect(response.body.programadas).toBe(1)
   })
-  it.each([2025, 2027])('rejects planning outside the current year: %s', async anio => {
+  it('plans the following year within its own calendar weeks', async () => {
+    const records = calendarWeeks(2027).map((week, i) => ({ ...week, id: i + 100, delegacion_id: 8, Asignaciones: [] }))
+    db.guardia.findUnique.mockResolvedValue(records[0])
+    db.guardia.findMany.mockResolvedValue(records)
+    const response = await plan({ ...input, anio: 2027, guardia_id: records[0].id }).expect(200)
+    expect(response.body).toMatchObject({ anio: 2027, programadas: records.filter((_, i) => i % 3 === 0).length })
+    expect(db.asignacionGuardia.createMany.mock.calls[0][0].data.map((a: { guardia_id: number }) => a.guardia_id))
+      .toEqual(records.filter((_, i) => i % 3 === 0).flatMap(shift => [shift.id, shift.id]))
+  })
+  it.each([2025, 2028])('rejects planning outside the current or next year: %s', async anio => {
     await plan({ ...input, anio }).expect(400)
     expect(db.$transaction).not.toHaveBeenCalled()
   })

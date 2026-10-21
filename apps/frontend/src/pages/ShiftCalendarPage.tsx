@@ -11,6 +11,7 @@ import { notifyCalendarUpdated } from '../utils/calendarEvents'
 export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
   const { accessToken } = useAuth()
   const today = shiftDay(new Date().toISOString())
+  const currentYear = Number(today.slice(0, 4))
   const [year, setYear] = useState(Number(today.slice(0, 4)))
   const [month, setMonth] = useState(Number(today.slice(5, 7)) - 1)
   const [selected, setSelected] = useState(today)
@@ -58,6 +59,10 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
     const date = new Date(Date.UTC(year, month + offset, 1))
     setYear(date.getUTCFullYear()); setMonth(date.getUTCMonth()); setSelected(date.toISOString().slice(0, 10))
     setEditing(null); setError(null)
+  }
+  function selectYear(value: number) {
+    setYear(value); setSelected(calendarWeekStarts(value)[0])
+    setEditing(null); setError(null); setSuccess(''); setReplaceExisting(false)
   }
   function edit(shift: GuardiaDetalle) {
     setEditing(shift.id)
@@ -162,14 +167,19 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link to="/supervisor" className="text-sm font-medium text-blue-700">← Volver al panel</Link>
-        {annual ? <span className="font-semibold">Año actual: {year}</span> : <div className="flex items-center gap-3">
+        {annual ? <label className="text-sm font-semibold">Año a planificar
+          <select aria-label="Año a planificar" value={year} disabled={saving || loading} onChange={event => selectYear(Number(event.target.value))} className="ml-3 rounded-lg border border-slate-300 bg-white p-2">
+            <option value={currentYear}>{currentYear} (actual)</option>
+            <option value={currentYear + 1}>{currentYear + 1} (siguiente)</option>
+          </select>
+        </label> : <div className="flex items-center gap-3">
           <button type="button" disabled={saving || (year === 2000 && month === 0)} onClick={() => moveMonth(-1)} className="rounded-lg border bg-white px-3 py-2 text-sm disabled:opacity-40">Mes anterior</button>
           <span className="text-sm font-semibold">{monthNames[month]} {year}</span>
           <button type="button" disabled={saving || (year === 2100 && month === 11)} onClick={() => moveMonth(1)} className="rounded-lg border bg-white px-3 py-2 text-sm disabled:opacity-40">Mes siguiente</button>
         </div>}
         <button type="button" disabled={loading || saving} onClick={() => { setEditing(null); setRevision(n => n + 1) }} className="text-sm font-medium text-blue-700 disabled:opacity-40">Actualizar</button>
       </div>
-      <p className="text-sm text-slate-600">{annual ? 'Selecciona el primer día de una semana resaltada para añadir los técnicos. La frecuencia se cuenta en semanas desde esa fecha y termina en la última semana del año actual. Las semanas que cruzan de año se conservan completas.' : 'Semanas de lunes a domingo · horario de Madrid. Selecciona un día para consultar o modificar los técnicos de esa guardia.'}</p>
+      <p className="text-sm text-slate-600">{annual ? 'Elige el año actual o el siguiente y selecciona el primer día de una semana resaltada para añadir los técnicos. La frecuencia se cuenta en semanas desde esa fecha y termina en la última semana del año elegido. Las semanas que cruzan de año se conservan completas.' : 'Semanas de lunes a domingo · horario de Madrid. Selecciona un día para consultar o modificar los técnicos de esa guardia.'}</p>
       {notice && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{notice}</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {success && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{success}</p>}

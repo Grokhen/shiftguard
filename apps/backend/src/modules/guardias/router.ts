@@ -5,7 +5,7 @@ import { prisma } from '../../prisma'
 import { authRequired } from '../../middlewares/authRequired'
 import { serializableTransaction } from '../../utils/transaction'
 import { httpError } from '../../utils/httpError'
-import { calendarWeeks, currentShiftYear, recurringCalendarWeeks, SHIFT_TIME_ZONE } from '../../utils/shiftCalendar'
+import { calendarWeeks, isPlanningYear, recurringCalendarWeeks, SHIFT_TIME_ZONE } from '../../utils/shiftCalendar'
 import {
   ensureSupervisorOrAdmin,
   getUserRoleCodigo,
@@ -118,20 +118,20 @@ router.post('/calendario/planificar', async (req, res, next) => {
     const user = req.user as AuthUser
     await ensureSupervisorOrAdmin(user)
     const dto = planningSchema.parse(req.body)
-    if (dto.anio !== currentShiftYear()) throw httpError('Solo puedes planificar el año actual. Actualiza el calendario.', 400)
+    if (!isPlanningYear(dto.anio)) throw httpError('Solo puedes planificar el año actual o el siguiente. Actualiza el calendario.', 400)
     const weeks = calendarWeeks(dto.anio)
     if (dto.frecuencia_semanas !== undefined && dto.frecuencia_semanas > weeks.length) {
       throw httpError(`La frecuencia debe estar entre 1 y ${weeks.length} semanas.`, 400)
     }
     const result = await serializableTransaction(async tx => {
       // Repeat every read and validation on a serialization retry.
-      if (dto.anio !== currentShiftYear()) throw httpError('El año ha cambiado. Actualiza el calendario.', 409)
+      if (!isPlanningYear(dto.anio)) throw httpError('El año ha cambiado. Actualiza el calendario.', 409)
       const first = await tx.guardia.findUnique({ where: { id: dto.guardia_id } })
       if (!first) throw httpError('Guardia no encontrada', 404)
       if (first.delegacion_id !== user.deleg) throw httpError('No puedes planificar guardias de otra delegación', 403)
       const targets = recurringCalendarWeeks(dto.anio, first.fecha_inicio, dto.frecuencia_semanas)
       if (!targets.length || targets[0].fecha_fin.getTime() !== first.fecha_fin.getTime()) {
-        throw httpError('Selecciona el inicio de una semana natural del año actual.', 400)
+        throw httpError('Selecciona el inicio de una semana natural del año elegido.', 400)
       }
       const users = [dto.principal_id, ...(dto.secundario_id ? [dto.secundario_id] : [])]
       const technicians = await tx.usuario.findMany({

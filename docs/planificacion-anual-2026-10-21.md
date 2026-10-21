@@ -2,7 +2,7 @@
 
 - [x] Renombrar la sección del supervisor a «Calendario de guardias».
 - [x] Conservar «Ver calendario de guardias» con la vista mensual existente.
-- [x] Añadir «Planificar calendario de guardias anual» para el año actual, con los inicios de semana resaltados.
+- [x] Añadir «Planificar calendario de guardias anual» para el año actual o el siguiente, con los inicios de semana resaltados.
 - [x] Seleccionar principal y secundario opcional, con repetición cada N semanas hasta fin de año.
 - [x] Validar frecuencia entera entre 1 y el número de semanas naturales del año (53 en 2026).
 - [x] Retirar el resaltado de permisos al resolverse su coincidencia con guardias, también entre pestañas.
@@ -11,7 +11,7 @@
 
 La vista anual permite seleccionar el lunes de una semana y asignarle un técnico principal y, opcionalmente, un secundario. Sin repetición, solo cambia esa semana. Si se marca «Repetir hasta fin de año», una frecuencia de 3 asigna la semana inicial, deja dos sin modificar y repite el turno en la siguiente.
 
-Se utiliza el año actual en Europe/Madrid, validado también por el servidor. No se repite en semanas nuevas del año siguiente. Se conservan completas las semanas naturales compartidas con diciembre/enero, según la regla anterior del proyecto. El primer lunes de la primera semana puede estar en diciembre del año anterior y aparece resaltado en enero.
+Se puede elegir el año actual en Europe/Madrid o el siguiente, validado también por el servidor. Cada serie termina en el año elegido y no se repite en semanas nuevas del posterior. Se conservan completas las semanas naturales compartidas con diciembre/enero, según la regla anterior del proyecto. El primer lunes de la primera semana puede estar en diciembre del año anterior y aparece resaltado en enero. Preparar cualquiera de los dos años conserva las asignaciones de esa semana compartida.
 
 La vista previa indica el número de semanas, la fecha inicial y el final de la última semana (el lunes siguiente). Por ejemplo, una sola semana desde el 05/01/2026 muestra hasta el 12/01/2026. Si alguna tiene otros técnicos, hay que marcar expresamente que se reemplazan esas asignaciones. Las semanas intermedias no se modifican. Guardar de nuevo la misma planificación conserva las asignaciones e IDs existentes.
 
@@ -42,7 +42,8 @@ El nombre del sustituto queda como propuesta de la solicitud. Resolver el confli
 
 ## Verificación
 
-- **340 pruebas habituales y 45 de integración PostgreSQL: 385 en total.**
+- **341 pruebas habituales y 46 de integración PostgreSQL: 387 en total.**
+- Planificación del año siguiente: persistencia de la serie, conservación de asignaciones al preparar el año actual y rechazo de años posteriores. El límite de años cambia según el calendario de Madrid, también antes del cambio de año en UTC.
 - Integración: persistencia cíclica de una pareja, repetición idempotente, último intervalo del año sin nuevas semanas en enero, rollback real después de eliminar asignaciones, roles/usuarios activos/delegación y dos planificaciones competidoras con aborto y reintento reales.
 - Pruebas de fechas: frecuencia de tres semanas durante el cambio de hora, coincidencia entre vista previa y servidor, y cambio de año en Madrid antes que UTC.
 - Pruebas del cliente: notificaciones de guardado, cambios entre pestañas, foco y retirada de listeners.

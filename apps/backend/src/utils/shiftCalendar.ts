@@ -3,6 +3,10 @@ export const SHIFT_TIME_ZONE = 'Europe/Madrid'
 export function currentShiftYear(now = new Date()): number {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: SHIFT_TIME_ZONE, year: 'numeric' }).format(now))
 }
+export function isPlanningYear(year: number, now = new Date()): boolean {
+  const current = currentShiftYear(now)
+  return year === current || year === current + 1
+}
 const day = 86_400_000
 const offsetFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: SHIFT_TIME_ZONE, timeZoneName: 'longOffset' })
 

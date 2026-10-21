@@ -10,8 +10,7 @@ beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => {}))
 afterEach(() => vi.restoreAllMocks())
 afterAll(() => prisma.$disconnect())
 
-async function fixture() {
-  const year = currentShiftYear()
+async function fixture(year = currentShiftYear()) {
   const delegation = await createDelegation()
   const supervisor = await createActor(delegation.id, 'SUPERVISOR')
   const primary = await createActor(delegation.id)
@@ -40,6 +39,18 @@ it('persists a cyclic pair every three natural weeks and leaves all intervening 
   expect(again.body.actualizadas).toBe(0)
   expect(await data.assignments()).toEqual(rows)
   await data.plan({ ...data.input, anio: data.year + 1 }).expect(400)
+  expect(await data.assignments()).toEqual(rows)
+})
+
+it('persists next-year planning and keeps its assignments when preparing the shared current-year week', async () => {
+  const data = await fixture(currentShiftYear() + 1)
+  await data.plan().expect(200)
+  const rows = await data.assignments()
+  expect(rows).toHaveLength(data.shifts.filter((_, i) => i % 3 === 0).length * 2)
+  await request(app).post('/api/guardias/calendario').set('Authorization', `Bearer ${data.supervisor.token}`)
+    .send({ anio: currentShiftYear() }).expect(200)
+  expect(await data.assignments()).toEqual(rows)
+  await data.plan({ ...data.input, anio: currentShiftYear() + 2 }).expect(400)
   expect(await data.assignments()).toEqual(rows)
 })
 
