@@ -2,6 +2,10 @@
 
 Instrucciones para futuras tareas de Codex en este proyecto.
 
+## Continuidad del proyecto
+
+Antes de retomar trabajo, leer [la memoria del proyecto](docs/memoria-proyecto.md), README.md y los informes enlazados que correspondan al cambio. Actualizar la memoria al cerrar una tanda, distinguiendo lo implementado de las propuestas pendientes.
+
 ## Contexto
 
 ShiftGuard es un monorepo con:
