@@ -42,6 +42,10 @@ La bandeja sigue calculando las coincidencias desde las asignaciones actuales. A
 
 El nombre del sustituto queda como propuesta de la solicitud. Resolver el conflicto requiere retirar al solicitante de todas las guardias que coincidan con sus días de permiso; entonces desaparecen el color y el aviso de conflicto, conservando las observaciones y el nombre propuesto.
 
+«Revisar calendario de guardias» enlaza al calendario mensual con la fecha de la primera coincidencia y el ID de la solicitud. Selecciona el día afectado y muestra sus técnicos con el botón «Modificar técnicos». El calendario vuelve a consultar la bandeja autorizada para mostrar el permiso, las fechas y el sustituto propuesto; no toma esos datos de la URL. Si hay varias guardias, ofrece botones para saltar a cada intervalo afectado, también en otros meses o años. Los días coincidentes se resaltan en naranja con «Conflicto», calculados desde las asignaciones actuales y los días inclusivos del permiso, respetando el final exclusivo de cada guardia. Al guardar se actualizan las marcas y la solicitud; al recargar se conserva el contexto. Si la solicitud ya no está pendiente o no está disponible, lo indica sin mostrar información anterior.
+
+La navegación añade seis pruebas: selección del primer día coincidente, orden de varias guardias, cambio de mes/año, cambio de hora en Madrid, final exclusivo y retirada del resaltado al sustituir al solicitante. También rechaza fechas inválidas de la URL. Verificada en local con la solicitud del 15–16 de noviembre: se abre noviembre, se selecciona el 15, se resalta solo ese día y se permite editar la guardia del 9–15 sin guardar cambios en los datos de demo.
+
 ## Verificación
 
 - **341 pruebas habituales y 46 de integración PostgreSQL: 387 en total.**

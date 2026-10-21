@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { subscribeCalendarUpdates } from '../utils/calendarEvents'
+import { permissionCalendarLink } from '../utils/permissionCalendar'
 import {
   getGuardiasDelegacion,
   getGuardiaDetalle,
@@ -492,7 +493,7 @@ export function SupervisorDashboard() {
                   {!!p.conflictos_guardias?.length && <div className="mt-2 text-sm text-orange-950">
                     <p className="font-semibold">Conflicto con guardias · {p.conflictos_guardias.length} {p.conflictos_guardias.length === 1 ? 'guardia' : 'guardias'}</p>
                     <p>{p.sustituto_nombre ? `Sustituto propuesto: ${p.sustituto_nombre}` : 'Sin sustituto propuesto. Necesita buscar cobertura.'}</p>
-                    <Link to="/supervisor/guardias" className="mt-1 inline-block font-medium underline">Revisar calendario de guardias</Link>
+                    <Link to={permissionCalendarLink(p)} className="mt-1 inline-block font-medium underline">Revisar calendario de guardias</Link>
                   </div>}
                   {!p.conflictos_guardias?.length && p.sustituto_nombre && <p className="mt-2 text-sm text-slate-600">Sustituto propuesto: {p.sustituto_nombre} · Sin coincidencias actuales con guardias.</p>}
                 </div>

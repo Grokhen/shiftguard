@@ -1,9 +1,10 @@
 import type { GuardiaDetalle } from '../services/guardiasService'
 import { monthDays, monthNames, shiftDay, shiftsOnDay } from '../utils/shiftCalendar'
 
-export function ShiftMonth({ year, month, shifts, selected, onSelect, userId, compact = false, weekStarts }: {
+export function ShiftMonth({ year, month, shifts, selected, onSelect, userId, compact = false, weekStarts, conflictRanges = [] }: {
   year: number; month: number; shifts: GuardiaDetalle[]; selected: string;
   onSelect: (day: string) => void; userId?: number; compact?: boolean; weekStarts?: string[]
+  conflictRanges?: { desde: string; hasta: string }[]
 }) {
   const today = shiftDay(new Date().toISOString())
   return (
@@ -21,14 +22,16 @@ export function ShiftMonth({ year, month, shifts, selected, onSelect, userId, co
           const assigned = matches.some(s => s.Asignaciones.length > 0)
           const planningStart = weekStarts?.includes(day.value) && (day.current || (month === 0 && day.value < `${year}-01-01`))
           const enabled = weekStarts ? planningStart : day.current
-          const color = planningStart ? assigned ? 'bg-emerald-100 font-bold text-emerald-950' : 'bg-violet-100 font-bold text-violet-950' : principal ? 'bg-red-100 text-red-900' : secondary ? 'bg-yellow-100 text-yellow-900'
+          const conflict = day.current && conflictRanges.some(range => range.desde <= day.value && range.hasta >= day.value)
+          const color = conflict ? 'bg-orange-100 font-semibold text-orange-950' : planningStart ? assigned ? 'bg-emerald-100 font-bold text-emerald-950' : 'bg-violet-100 font-bold text-violet-950' : principal ? 'bg-red-100 text-red-900' : secondary ? 'bg-yellow-100 text-yellow-900'
             : assigned ? 'bg-blue-50 text-blue-900' : 'bg-slate-50 text-slate-700'
           const label = principal ? 'Principal' : secondary ? 'Secundario' : assigned ? 'Compañeros de guardia' : matches.length ? 'Sin técnicos asignados' : 'Sin guardia preparada'
           return (
             <button key={day.value} type="button" disabled={!enabled} aria-pressed={selected === day.value}
-              aria-label={`${day.value}: ${planningStart ? assigned ? 'Semana asignada. Modificar técnicos' : 'Semana vacía. Planificar semana' : label}`} onClick={() => onSelect(day.value)}
+              aria-label={`${day.value}: ${conflict ? 'Conflicto con el permiso. ' : ''}${planningStart ? assigned ? 'Semana asignada. Modificar técnicos' : 'Semana vacía. Planificar semana' : label}`} onClick={() => onSelect(day.value)}
               className={`${compact ? 'min-h-9 text-xs' : 'min-h-16 text-sm'} flex flex-col items-center justify-center rounded-lg border border-transparent ${color} disabled:opacity-30 hover:border-blue-400 focus-visible:outline-2 focus-visible:outline-blue-600 ${selected === day.value ? 'ring-2 ring-blue-600' : ''} ${today === day.value ? 'font-bold underline' : ''}`}>
               <span>{day.number}</span>
+              {conflict && <span className="text-[10px]">Conflicto</span>}
               {planningStart && <span className="text-[10px]">{assigned ? 'Asignada' : 'Vacía'}</span>}
               {day.current && (principal || secondary) && <span className="text-[10px] font-semibold">{principal ? 'P' : 'S'}</span>}
               {!compact && day.current && <span className="text-[10px]">{assigned ? 'Asignada' : matches.length ? 'Vacía' : '—'}</span>}

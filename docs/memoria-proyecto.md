@@ -5,10 +5,11 @@ Actualizada el 21 de octubre de 2026.
 ## Estado publicado
 
 - Rama de trabajo: `codex/security-stabilization`. Pendiente de revisión e integración en `main`; publicar la rama no despliega la aplicación.
+- «Revisar calendario de guardias» abre el mes y el primer día afectado de la solicitud. El calendario consulta el permiso autorizado, resalta en naranja solo sus coincidencias actuales y ofrece accesos a las demás guardias afectadas. Conserva el contexto al recargar y retira las marcas cuando se sustituye al solicitante. Seis pruebas nuevas; lint, compilación y recorrido con navegador correctos.
 - El planificador anual distingue los inicios de semana asignados (verde, «Asignada») de los vacíos (violeta, «Vacía»), con leyenda y actualización tras guardar. Verificado con lint, compilación frontend y navegador local.
 - `254d610` añade planificación de guardias del año actual o siguiente, con validación en el servidor según Europe/Madrid.
 - `75cb3e9` corrige el resumen del periodo: una semana desde el 05/01/2026 muestra hasta el 12/01/2026.
-- Verificación del cambio funcional: 341 pruebas habituales y 46 de integración PostgreSQL, 387 en total; tipos de integración, compilaciones y lint correctos. [CI correcta](https://github.com/Grokhen/shiftguard/actions/runs/39627178075).
+- Verificación local actual: 347 pruebas habituales correctas, tipos de integración, lint y compilación frontend. Las 46 pruebas de integración PostgreSQL siguen cubiertas por CI (393 pruebas en total con las seis nuevas). [CI de la tanda anterior](https://github.com/Grokhen/shiftguard/actions/runs/39659270468).
 
 ## Funcionalidad disponible
 

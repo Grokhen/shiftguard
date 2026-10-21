@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ShiftMonth } from '../components/ShiftMonth'
 import { actualizarGuardia, getCalendar, getCalendarTechnicians, getRolesGuardia, planificarCalendario, prepareCalendar,
@@ -7,14 +7,24 @@ import { actualizarGuardia, getCalendar, getCalendarTechnicians, getRolesGuardia
 import { formatCalendarDateRange } from '../utils/date'
 import { calendarWeekStarts, monthNames, recurringWeekStarts, shiftDay, shiftsOnDay } from '../utils/shiftCalendar'
 import { notifyCalendarUpdated } from '../utils/calendarEvents'
+import { getPermisosPendientes, type PermisoConUsuario } from '../services/permisosService'
+import { assignedPermissionConflicts, calendarDay, permissionConflicts } from '../utils/permissionCalendar'
 
 export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
   const { accessToken } = useAuth()
   const today = shiftDay(new Date().toISOString())
   const currentYear = Number(today.slice(0, 4))
-  const [year, setYear] = useState(Number(today.slice(0, 4)))
-  const [month, setMonth] = useState(Number(today.slice(5, 7)) - 1)
-  const [selected, setSelected] = useState(today)
+  const [searchParams] = useSearchParams()
+  const initialDay = (!annual && calendarDay(searchParams.get('fecha'))) || today
+  const requestedId = Number(searchParams.get('permiso'))
+  const permissionId = !annual && Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : null
+  const [year, setYear] = useState(Number(initialDay.slice(0, 4)))
+  const [month, setMonth] = useState(Number(initialDay.slice(5, 7)) - 1)
+  const [selected, setSelected] = useState(initialDay)
+  const [permissionContext, setPermissionContext] = useState<{ id: number; permission: PermisoConUsuario | null; error?: string } | null>(null)
+  const [permissionRevision, setPermissionRevision] = useState(0)
+  const context = permissionContext?.id === permissionId ? permissionContext : null
+  const permission = context?.permission
   const [shifts, setShifts] = useState<GuardiaDetalle[]>([])
   const [technicians, setTechnicians] = useState<UsuarioGuardia[]>([])
   const [roles, setRoles] = useState<RolGuardia[]>([])
@@ -32,6 +42,17 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
   const [success, setSuccess] = useState('')
   const details = useRef<HTMLElement>(null)
   const weekStarts = calendarWeekStarts(year)
+
+  useEffect(() => {
+    if (!accessToken || !permissionId) return
+    let active = true
+    getPermisosPendientes(accessToken).then(permissions => {
+      if (active) setPermissionContext({ id: permissionId, permission: permissions.find(p => p.id === permissionId) ?? null })
+    }).catch(() => {
+      if (active) setPermissionContext({ id: permissionId, permission: null, error: 'No se pudo consultar la solicitud. Pulsa Actualizar para intentarlo de nuevo.' })
+    })
+    return () => { active = false }
+  }, [accessToken, permissionId, permissionRevision, revision])
 
   useEffect(() => {
     if (!accessToken) return
@@ -63,6 +84,10 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
   function selectYear(value: number) {
     setYear(value); setSelected(calendarWeekStarts(value)[0])
     setEditing(null); setError(null); setSuccess(''); setReplaceExisting(false)
+  }
+  function goToConflict(day: string) {
+    setYear(Number(day.slice(0, 4))); setMonth(Number(day.slice(5, 7)) - 1); setSelected(day)
+    setEditing(null); setError(null); setSuccess('')
   }
   function edit(shift: GuardiaDetalle) {
     setEditing(shift.id)
@@ -98,6 +123,7 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
         if (secondary) assignments.push({ usuario_id: Number(secondary), rol_guardia_id: secondaryRole.id })
         const updated = await actualizarGuardia(accessToken, shift.id, { asignaciones: assignments })
         setShifts(prev => prev.map(s => s.id === shift.id ? updated : s))
+        setPermissionRevision(n => n + 1)
         notifyCalendarUpdated()
         setSuccess('Técnicos guardados. Los conflictos de permisos se han actualizado.')
       }
@@ -116,6 +142,8 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
     }
   }
   const selectedShifts = shiftsOnDay(shifts, selected)
+  const conflictRanges = permission ? assignedPermissionConflicts(permission, shifts) : []
+  const permissionRanges = permission ? permissionConflicts(permission, permission.conflictos_guardias ?? []) : []
   const plannedStarts = recurringWeekStarts(year, selected, repeat ? Number(frequency) : undefined)
   const plannedEnd = plannedStarts.length ? new Date(`${plannedStarts.at(-1)!}T00:00:00.000Z`) : null
   if (plannedEnd) plannedEnd.setUTCDate(plannedEnd.getUTCDate() + 7)
@@ -180,6 +208,14 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
         <button type="button" disabled={loading || saving} onClick={() => { setEditing(null); setRevision(n => n + 1) }} className="text-sm font-medium text-blue-700 disabled:opacity-40">Actualizar</button>
       </div>
       <p className="text-sm text-slate-600">{annual ? 'Elige el año actual o el siguiente y selecciona el primer día de una semana resaltada para añadir los técnicos. La frecuencia se cuenta en semanas desde esa fecha y termina en la última semana del año elegido. Las semanas que cruzan de año se conservan completas.' : 'Semanas de lunes a domingo · horario de Madrid. Selecciona un día para consultar o modificar los técnicos de esa guardia.'}</p>
+      {permissionId && <section aria-label="Solicitud en revisión" className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-950">
+        {!context ? <p>Consultando la solicitud de permiso…</p> : context.error ? <p role="alert">{context.error}</p> : permission ? <>
+          <p className="font-semibold">Permiso de {permission.Usuario.nombre} {permission.Usuario.apellidos} · {formatCalendarDateRange(permission.fecha_inicio, permission.fecha_fin)}</p>
+          <p>{permissionRanges.length ? 'Los días en naranja coinciden con una guardia del solicitante. Selecciona un día y pulsa «Modificar técnicos» para cambiar la asignación.' : 'Esta solicitud ya no tiene coincidencias con guardias.'}</p>
+          {permission.sustituto_nombre && <p>Sustituto propuesto: {permission.sustituto_nombre}</p>}
+          <div className="flex flex-wrap gap-2">{permissionRanges.map(range => <button key={range.guardiaId} type="button" disabled={saving} onClick={() => goToConflict(range.desde)} className="rounded-lg border border-orange-300 bg-white px-3 py-1 font-medium disabled:opacity-40">Ver {formatCalendarDateRange(range.desde, range.hasta)}</button>)}</div>
+        </> : <p>Esta solicitud ya no está pendiente o no está disponible. Vuelve al panel para revisar los permisos actuales.</p>}
+      </section>}
       {notice && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{notice}</p>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {success && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{success}</p>}
@@ -193,7 +229,7 @@ export function ShiftCalendarPage({ annual = false }: { annual?: boolean }) {
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 12 }, (_, m) =>
           <ShiftMonth key={m} year={year} month={m} shifts={shifts} selected={selected} onSelect={selectDay} weekStarts={weekStarts} compact />)}</div>
       </> : <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <ShiftMonth year={year} month={month} shifts={shifts} selected={selected} onSelect={selectDay} />
+        <ShiftMonth year={year} month={month} shifts={shifts} selected={selected} onSelect={selectDay} conflictRanges={conflictRanges} />
         {detailsPanel}
       </div>}
     </div>
