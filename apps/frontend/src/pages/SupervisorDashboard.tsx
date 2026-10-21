@@ -474,6 +474,10 @@ export function SupervisorDashboard() {
                     {p.Tipo.nombre} · {formatCalendarDateLong(p.fecha_inicio)} –{' '}
                     {formatCalendarDateLong(p.fecha_fin)}
                   </p>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-700">
+                    <span className="font-medium">Observaciones: </span>
+                    {p.observaciones?.trim() || 'Sin observaciones.'}
+                  </p>
                 </div>
                 <div className="flex gap-2 text-xs">
                   <button
